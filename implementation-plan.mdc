@@ -1,0 +1,1766 @@
+# Electron AI SDK Rebuild Plan
+
+## Development-only classifier display: Verification
+Status: Done
+Did: Confirmed the existing import.meta.env.DEV rendering guard and added real App tests covering fresh and restored success/error diagnostics in development and production modes. Kept classification data and learning behavior unchanged.
+Output: 28 focused tests, frontend typecheck and production build passed. Production JavaScript contains neither the diagnostic header class nor its accessible panel label; no runtime change was necessary.
+
+## Anki configured providers: Scope
+Status: Done
+Did: Checked the model selector and credential metadata.
+Output: Show only providers with saved or environment API credentials. Fall back to the first configured provider when the global selection lacks credentials; an empty list disables generation while preserving export.
+
+## Anki configured providers: Implement
+Status: Done
+Did: Filtered the selector by credential metadata and added a valid-provider fallback plus empty-state copy.
+Output: Added regressions for configured-only options, environment credentials, fallback selection and export with no credentials.
+
+## Anki configured providers: Verify
+Status: Done
+Did: Passed 22 dialog/App-flow tests and the explicit frontend TypeScript check.
+Output: Confirmed unconfigured providers are absent, the configured default is preserved, fallback uses available credentials and empty-provider drafts remain exportable.
+
+## Anki model selection: Contract
+Status: Done
+Did: Checked generation, saved credentials and draft/export flows.
+Output: Opening cards loads drafts without generating. Select Provider and model, then explicitly generate using that pair without changing global settings. Missing credentials block generation only.
+
+## Anki model selection: Implement
+Status: Done
+Did: Added local provider/model selection, credential gating, discovery refresh and explicit generation. Typed and validated selected-model IPC and isolated in-flight requests per model.
+Output: Saved drafts still restore/export; selection does not write settings. Added service and UI regressions.
+
+## Anki model selection: Verify
+Status: Done
+Did: Passed 46 focused Anki tests, full source suite (1064 passed, 42 opt-in skipped), explicit frontend TypeScript check and production build.
+Output: Verified explicit generation, selected provider/model routing, per-model deduplication, credential gating, refresh retry, draft recovery and export. Provider calls were mocked; no live model requests or user settings writes were performed.
+
+## Anki export: Contract
+Status: Done
+Did: Inspected existing draft persistence and editor states; checked Anki's official text import documentation for UTF-8, tab separators, HTML escaping, tags and file headers.
+Output: Replace the primary save action with Export selected cards. Debounce autosaves and flush the latest edits before close/export without overwriting in-flight edits. Export selected cards to a native-save-dialog .txt file with Anki import headers, escaped front/back plus explanation, tags and embedded source IDs. Preserve unchecked cards; cancellation writes no export; stale sources/drafts block export.
+
+## Anki export: Implement
+Status: Done
+Did: Added native-save-dialog export IPC, guarded selected-card text export with escaped HTML/TSV fields, import headers and source identifiers. Replaced the save button with Export selected cards and a debounced autosave hook that serializes writes, retains concurrent edits and flushes before close/export.
+Output: Selected cards export to an Anki-importable .txt file; unchecked cards remain saved. Cancellation, stale source/draft revisions, empty selection and failed writes are handled without replacing existing exports. Added file and DOM tests covering escaping, selection, autosave races, retries and cancelled/duplicate exports.
+
+## Anki export: Verify
+Status: Done
+Did: Passed 23 focused export/autosave/App tests and the full source suite (1058 passed, 42 opt-in skipped), production build and final frontend typecheck. Verified UTF-8 text, headers, quotes/newlines/HTML escaping, selection filtering, cancellation, conflict rechecks, write cleanup and edits during in-flight saves.
+Output: Export follows https://docs.ankiweb.net/importing/text-files.html using Basic fields plus tags; user selects the destination through the native save dialog. Existing main-process typecheck errors remain outside the export modules. Native save dialogs and import into a real Anki collection were not exercised; tests used temporary files and mocked UI bridges, with no user Note/Anki data changed.
+
+## Anki card volume: Scope
+Status: Done
+Did: Confirmed generation currently invites up to 20 cards and only deduplicates identical questions. A single expression can therefore produce many variations of the same learning point.
+Output: Prefer 1–2 cards for one target, enforce at most 3 per target and 6 for genuinely multi-target Notes. Require source-backed target identifiers to unlock multi-target output; otherwise use the conservative single-target limit. Keep existing draft storage compatibility and manual edits unchanged.
+
+## Anki card volume: Implement
+Status: Done
+Did: Rewrote generation guidance to prefer 1–2 high-value cards, avoid example/section variants and rank useful cards first. Added per-target and overall generation ceilings, source-backed primary-target checks and component-target consolidation without extra model requests.
+Output: Single/missing/invalid target metadata is conservatively limited to 3 cards; independent source-backed targets allow at most 3 each and 6 total. Existing 20-card storage validation is unchanged, so previously saved/manual drafts remain editable. Added draw-attention-to 14-card, multi-target, fallback and legacy-draft regressions.
+
+## Anki card volume: Verify
+Status: Done
+Did: Passed 36 focused Anki generation/storage/UI tests and the full source suite (1040 passed, 42 opt-in skipped), frontend typecheck and production build. Checked source scope and preserved old draft read/save behavior.
+Output: Mocked 14-card draw-attention-to output is reduced to 3 without additional provider calls; multiple independent targets cap at 6, single-card output stays single, and existing 14-card drafts survive. Semantic selection guidance was not live-model tested; no saved user drafts were rewritten.
+
+## Anki drafts: Contract
+Status: Done
+Did: Inspected Note provenance, guarded saves, provider generation, IPC bridge and editor/update dialogs. The approved slice is Note-to-basic-card generation and editable/selectable previews, with export deferred.
+Output: A draft set belongs to a stable Note ID and source-content revision. Each card has front, back, explanation, tags and selection. Generate only from saved Note content; validate bounded output and assign identities in code. Save drafts separately under the Notes directory, preserve prior drafts until explicit save and warn when the source changes.
+
+## Anki drafts: Implement
+Status: Done
+Did: Added bounded Basic-card contracts, validated Note-only generation, duplicate-question filtering, guarded sidecar persistence and typed IPC. Added a Note action that flushes edits and assigns legacy provenance, plus a modal for editing/previewing/selecting, restoring drafts, stale-source warnings and explicit discard/regeneration.
+Output: Drafts persist in .englishask-anki under the configured Notes directory using stable Note IDs. Manual edits and selections survive reopening and renaming; failed generation/saves retain drafts. Added 29 real-file/provider/DOM/App-flow tests; no Anki export or live Anki integration is included in this slice.
+
+## Anki drafts: Verify
+Status: Done
+Did: Passed 32 focused service/file/DOM/App/shortcut checks, explicit frontend typecheck and production build. Verified StrictMode makes one generation call, edits flush before generation, provenance survives rename, stale/conflicting writes are rejected, provider errors are sanitized, and failed regeneration keeps manual drafts.
+Output: Latest full source run: 1014 passed, 42 opt-in skipped, 5 settings tests failed on additional Jev persistence fields; isolated settings rerun reproduces them. Independent main-process typecheck still reports existing errors outside the new Anki modules (including the pre-existing create-Note request helper). Model calls were mocked; no real Note files, account credentials or Anki collection were modified. Export and native visual QA are not part of this verification.
+
+## Remove Bailian provider: Implementation
+Status: Done
+Did: Removed Bailian options, defaults, request adapter, model discovery and environment examples, retaining Anthropic. Added read-time handling of retired Bailian settings without affecting remaining providers.
+Output: Removed Bailian-only tests and added regressions rejecting new Bailian requests and loading/saving old configuration safely. Old active Bailian selections fall back to the default provider.
+
+## Remove Bailian provider: Verification
+Status: Done
+Did: Ran the full source suite, explicit frontend typecheck and production build, then searched remaining source references to confirm only retirement compatibility and rejection tests mention Bailian.
+Output: 976 tests passed, 42 opt-in skipped; frontend typecheck and build passed. Other providers, including Anthropic, remain available; no real credentials were read or modified.
+
+## Note provenance: Scope
+Status: Done
+Did: Inspected file-based Note IDs, Ask topic creation, guarded update/undo, Markdown editing and external sync. File IDs change on rename, so they cannot identify future cards.
+Output: Add versioned english_ask YAML frontmatter with a stable note_id and deduplicated Ask/message sources. Preserve filename IDs, user frontmatter and body; hide managed metadata in editing/preview. Add metadata on creation or subsequent save, never bulk-rewrite old files. Source IDs are validated application data, not model-generated identities.
+
+## Note provenance: Implement
+Status: Done
+Did: Added a versioned YAML flow-mapping codec, storage-generated stable UUIDs, validated Ask/message provenance on create/update, deduplication, identity protection on saves and source rollback on undo. Retained user frontmatter during AI updates and hid managed metadata from editor/preview while retaining it during autosave.
+Output: New/next-saved Notes carry english_ask metadata; reads leave legacy files unchanged. Updates validate selected message IDs against the supplied conversation and unchanged output adds no sources. Added codec, real-file, mocked-provider and renderer regression tests; first focused run passed 79 tests.
+
+## Note provenance: Verify
+Status: Done
+Did: Passed 98 focused codec/storage/provider/renderer/sync tests, explicit frontend typecheck and production build. Corrected assertion declarations and message typing in the two touched main-process modules; their independent Bundler-mode diagnostics are clear.
+Output: First full run passed 978 tests (42 opt-in skipped). Latest full rerun passed 976, skipped 42 and failed 5 Jev configuration tests because the settings mock lacks getStoredJevConfiguration; these are outside this change. Independent main-process checking still reports errors in other modules. AI provenance was verified with mocked responses and temporary files, not live model calls or existing user Note rewrites.
+
+## Notes tag search
+Status: Done
+Did: Added Markdown hashtag extraction to Note summaries and title-or-tag search with optional # prefixes, including synchronized tag changes.
+Output: All 31 focused storage, tag, search, and synchronization tests passed; TypeScript checks and production build passed.
+
+## Bailian and Anthropic providers: Scope
+Status: Done
+Did: Checked provider dispatch, settings, cancellation and official API documentation. Bailian's existing Beijing domain remains supported; native model lists use pagination distinct from OpenAI.
+Output: Add clearly labeled Beijing Bailian and official Anthropic providers, independent keys/models, paginated discovery, structured/plain generation and cancellation. Preserve the four existing providers and do not use real credentials for tests.
+
+## Bailian and Anthropic providers: Implement
+Status: Done
+Did: Added provider identities/default models, isolated stored/environment keys, Beijing Bailian SDK requests, native Anthropic Messages, and bounded paginated model discovery. Existing settings controls cover refresh, saved-key masking and deletion.
+Output: Added wire-level generation/authentication/cancellation tests, pagination/error tests, settings isolation and renderer switching/refresh/delete coverage. Bailian discovery excludes known thinking-only and multimodal IDs incompatible with this synchronous text path.
+
+## Bailian and Anthropic providers: Verify
+Status: Done
+Did: Passed 958 source tests (42 opt-in skipped), production build and explicit frontend typecheck. Rechecked main-process Bundler-mode diagnostics after fixing a new test typing issue; existing assertion/configuration errors remain outside this change.
+Output: Official endpoint contracts are implemented and tested with synthetic HTTP responses. No real authenticated model calls or credential changes were made. Bailian is explicitly Beijing-only; no other region or Coding Plan support is claimed.
+
+## Narrow automatic grammar review: Scope
+Status: Done
+Did: Inspected current selection rules and found draft keyword scanning and incidental generated modules can trigger review for ordinary explanations.
+Output: Gate automatic review on explicit grammar/correction/analysis intent, grammar concepts, requested grammar modules or grammar-topic comparisons. Translation, example generation, pronunciation and polishing skip automatic review. Keep local validation and failure recovery unchanged.
+
+## Narrow automatic grammar review: Implement
+Status: Done
+Did: Removed draft keyword and incidental-module triggers, prioritized lightweight task exemptions, and retained explicit grammar intent/module, concept and grammar-comparison gates. Skip logs now include intent and a policy-specific reason.
+Output: Ordinary meaning/usage answers no longer incur review solely due to prose wording; local validation, request cancellation and existing retained-draft retry handling are unchanged. No new manual-review UI is included in this automatic-policy change.
+
+## Narrow automatic grammar review: Verify
+Status: Done
+Did: Passed 918 source tests (42 opt-in skipped), production build and frontend typecheck. Updated keyword/module/intent and generation call-count regressions, including Chinese and English pattern-meaning cases.
+Output: Verified skipped tasks make no review provider call and explicit grammar tasks retain review. Existing cancellation, retained-output failure recovery and local card validation tests pass; no live latency claims or user-history changes.
+
+## Notes hashtag chips
+Status: Done
+Did: Added dark rounded hashtag chips with light-blue text in Notes live preview, revealing source on the focused line and excluding code, links, tables, and escaped hashes.
+Output: All 8 live-preview tests and production build pass; source Markdown remains unchanged and `git diff --check` passes.
+
+## Generated study note titles: Scope
+Status: Done
+Did: Found new-note creation copies answer Markdown and names files from questions; only updates currently use the formatter. The editor already renders the filename as its title, so a repeated H1 would duplicate it.
+Output: Use the formatter for new notes with title and Markdown in one response, based on selected conversation material. Fall back to the question for missing/invalid titles, preserve existing-note names, and keep the existing single-title presentation.
+
+## Generated study note titles: Implement
+Status: Done
+Did: Added optional validated formatter titles and creation-specific prompt guidance; new-note groups now receive a title and synthesized Markdown together. Existing-note updates discard unsolicited titles.
+Output: 45 targeted service/storage/renderer checks pass, covering follow-ups, split/combined topics, missing or unsafe titles, generated-body preservation and no rename during updates.
+
+## Generated study note titles: Verify
+Status: Done
+Did: Passed 45 focused tests, explicit frontend typecheck and production build; checked full source regression and reran its failures without changing unrelated card-review code.
+Output: Full suite: 892 passed, 42 skipped, 2 failures in card-acceptance cancellation counts and knowledge-card-service review error wording. Both reproduce outside the changed files. No live model calls or existing-note renames were performed.
+
+## Select arrow state: Fix and verify
+Status: Done
+Did: Bound the shared select chevron direction to its actual expanded state, preserving the icon dimensions and existing interactions.
+Output: 20 component/settings-flow tests and frontend typecheck passed; dismissal coverage includes toggle, selection, outside click, Escape, Tab, blur and disabling.
+
+## Delete saved provider key: Scope
+Status: Done
+Did: Inspected settings persistence, IPC bridge, confirmation UI and provider metadata. Blank saves intentionally preserve keys; legacy Gemini duplicates require explicit removal.
+Output: Add an explicit provider-only deletion action with confirmation, preserve all model/settings choices, and report environment fallback without exposing credentials.
+
+## Delete saved provider key: Implement
+Status: Done
+Did: Added explicit deletion IPC/storage handling and a labeled trash icon with the existing confirmation dialog; preserved model choices and displayed environment fallback.
+Output: 31 focused tests pass, covering all providers, legacy Gemini removal, invalid targets, confirmation/cancel, inactive-provider deletion, pending state and failure preservation.
+
+## Delete saved provider key: Verify
+Status: Done
+Did: Ran the full source regression suite, explicit frontend typecheck and production build after focused storage and real App DOM deletion tests.
+Output: 871 tests passed, 42 opt-in skipped; typecheck and build passed. All deletion tests used synthetic settings; no real saved credentials were deleted or modified.
+
+## OpenAI and OpenRouter model refresh: Scope
+Status: Done
+Did: Inspected the existing provider dispatcher, key resolution and refresh UI; checked official model-list endpoints and OpenRouter modality fields.
+Output: Add authenticated model listing for both providers, preserving current selections and lists on errors, with bounded requests and non-secret error messages.
+
+## OpenAI and OpenRouter model refresh: Implement
+Status: Done
+Did: Added a shared authenticated adapter, provider dispatch and refresh eligibility; filtered model IDs/modalities and added timeout, status and malformed-response handling without exposing credentials.
+Output: 49 focused checks pass, including real renderer refresh interactions, provider dispatch, credential precedence, error preservation and timeout cleanup.
+
+## OpenAI and OpenRouter model refresh: Verify
+Status: Done
+Did: Ran focused adapter/dispatch/renderer checks, the full source suite, explicit frontend typecheck and production build.
+Output: 859 tests passed, 42 opt-in skipped; typecheck and build passed. No real account credentials were used or modified; live authenticated verification remains unperformed.
+
+## Provider settings preservation: Scope
+Status: Done
+Did: Confirmed settings writes merge provider keys/models, but the renderer only recognizes the last saved provider and resets models on switching.
+Output: Return non-secret per-provider metadata and use it when switching providers; verify cross-provider updates and blank-key saves without touching real credentials.
+
+## Provider settings preservation: Implement
+Status: Done
+Did: Added non-secret per-provider settings metadata and restored each provider's key mask, model availability and saved model on selection.
+Output: Added real App DOM tests and isolated storage tests; 19 focused checks pass, including blank-key preservation, environment keys and legacy Gemini settings.
+
+## Provider settings preservation: Verify
+Status: Done
+Did: Passed 19 focused checks, frontend typecheck and production build. The first full run hit a cancellation-message assertion outside this change; its isolated rerun and the complete rerun passed.
+Output: Full rerun: 817 passed, 42 opt-in skipped. Tests use synthetic settings and verify switching, saved custom models, model refresh without forwarding keys, remounts and cross-provider storage preservation; real credentials were not read or modified.
+
+## Step 1: Clear current project files
+Status: Done
+Did: Removed existing project files while preserving `.git` and this implementation plan.
+Output: Workspace is empty except for repository metadata and `implementation-plan.mdc`.
+
+## Step 2: Scaffold Electron project
+Status: Done
+Did: Created a clean Electron/Vite/React/TypeScript project scaffold with main, preload, and renderer entry points.
+Output: Added package scripts, Vite config, TypeScript configs, base renderer shell, and `.gitignore`.
+
+## Step 3: Add Vercel AI SDK integration
+Status: Done
+Did: Added typed IPC, settings persistence, request validation, and Vercel AI SDK `generateText` calls in Electron main process.
+Output: Renderer can call AI through `window.englishAsk.askEnglish(...)`; Gemini keys stay in main process storage or environment.
+
+## Step 4: Add renderer chat UI and API key settings
+Status: Done
+Did: Added the renderer chat interface, message state, request submission, API key settings panel, loading state, and error display.
+Output: Electron users can save a Gemini key in-app and ask questions through the typed preload API.
+
+## Step 5: Add automated verification
+Status: Done
+Did: Added Vitest coverage for request validation, prompt construction, and Gemini API key resolution.
+Output: `npm run typecheck`, `npm run test`, and `npm run build` all pass.
+
+## Step 6: Add settings page with model selection
+Status: Done
+Did: Replaced the inline settings panel with a Settings page, added model selection, persisted the selected Gemini model, and wired AI calls to use it.
+Output: Users can switch between Chat and Settings, save an API key, choose a Gemini model, and have requests use the saved model.
+
+## Step 7: Add editable system prompt settings
+Status: Done
+Did: Added persisted system prompt settings, showed the current prompt in Settings, and wired AI requests to use the saved prompt.
+Output: Users can view and edit the built-in system prompt; validation prevents empty or oversized prompts.
+
+## Step 8: Load Gemini models dynamically
+Status: Done
+Did: Added a main-process Gemini models fetcher, typed IPC bridge, Settings page refresh action, and manual model ID fallback.
+Output: Settings can refresh real `generateContent` Gemini models from the saved API key, while still allowing custom model IDs.
+
+## Step 8: Add chat history sidebar
+Status: Done
+Did: Added renderer chat session history state, localStorage persistence, a selectable chat history sidebar, new-chat creation, and Vitest coverage for chat history helpers.
+Output: Users can see prior chat sessions in the chat sidebar, switch between them, and keep the history across renderer reloads; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 9: Optimize ChatGPT-like desktop UI
+Status: Done
+Did: Reworked the renderer into a ChatGPT-like dark desktop layout with a fixed history sidebar, search, top model pill, centered message stream, sticky composer, and matching settings page styling.
+Output: The chat page now visually follows the provided ChatGPT reference while preserving session history, settings, and AI request behavior; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 10: Align sidebar hierarchy
+Status: Done
+Did: Updated the sidebar hierarchy to show `EnglishAsk 英问` on the left and a sidebar toggle on the right, followed by `New Ask` and `Search` action buttons, then an `Asks` section with chat history. Changed the default chat title to `New Ask`.
+Output: The left sidebar now matches the requested structure; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 11: Fix sidebar toggle behavior
+Status: Done
+Did: Connected the sidebar toggle button to collapsed state, added collapsed sidebar layout styles, and added layout helper tests.
+Output: Clicking the toggle now collapses the sidebar to a narrow rail with the toggle still available; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 12: Render markdown chat messages
+Status: Done
+Did: Added a safe renderer-side MarkdownContent component, wired chat messages to use it, styled headings/lists/quotes/code/links, and added parser coverage.
+Output: Assistant answers and user messages now render common Markdown structures instead of showing raw Markdown syntax; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 13: Add history context menu actions
+Status: Done
+Did: Added tested chat history helpers for rename/delete, wired a right-click history menu, added inline rename editing, and handled deleting the active or final session.
+Output: Sidebar asks can now be right-clicked to Rename or Delete; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 14: Separate sidebar and chat scrolling
+Status: Done
+Did: Locked the desktop app shell to the viewport, made the sidebar and workspace non-page-scrolling containers, and preserved mobile natural scrolling.
+Output: The left history area and right chat conversation now scroll independently; `npm run typecheck` and `npm run build` pass.
+
+## Step 15: Make Settings a full-page layout
+Status: Done
+Did: Split Settings into its own full-viewport shell with a dedicated left sidebar, a top-left `Back to app` action, and a scrollable full-page settings workspace.
+Output: Opening Settings now shows a full-page settings view with its own sidebar and return action; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 16: Move current settings under Models
+Status: Done
+Did: Renamed the Settings sidebar section and matching content header to `Models` while keeping the existing model/API/system prompt controls in that section.
+Output: The current settings now appear under the `Models` item in the settings left sidebar; `npm run typecheck` and `npm run build` pass.
+
+## Step 17: Add Prompts settings section
+Status: Done
+Did: Added a `Prompts` item to the settings sidebar, split Models and Prompts into separate settings sections, and moved the System prompt editor under Prompts.
+Output: Settings now has Models and Prompts sidebar sections; `npm run typecheck`, `npm run build`, and `npm run test` pass.
+
+## Step 18: Mask saved API key in Models
+Status: Done
+Did: Added a renderer-only masked value for saved app API keys, cleared it on input focus for replacement, and restored the mask after saving without exposing the real key.
+Output: When the key is saved, the Models API key field appears filled with password dots; `npm run typecheck` and `npm run build` pass.
+
+## Step 19: Fetch all Gemini model pages
+Status: Done
+Did: Added paginated Gemini model list loading with `nextPageToken` support and a bounded page loop.
+Output: Refreshing Gemini models now reads every model page before filtering `generateContent` models; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 20: Switch chat requests to Interactions API
+Status: Done
+Did: Replaced the chat completion path with Gemini Interactions REST calls while keeping API keys in the Electron main process and preserving local chat history.
+Output: English Ask requests now call `POST /v1beta/interactions` with `store: false`; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 21: Filter model list to text Gemini models
+Status: Done
+Did: Added a text Gemini model predicate and applied it while extracting refreshed Gemini model IDs.
+Output: The Settings model list now filters out image, TTS, audio, video, embedding, live, and other non-text models; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 22: Promote text model filtering to provider-neutral layer
+Status: Done
+Did: Moved text-only model filtering into a provider-neutral `text-model-filter` module and applied it after Gemini model extraction.
+Output: Future provider model lists can reuse `filterTextModelIds(...)`; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 23: Add model provider selector
+Status: Done
+Did: Added a persisted model provider setting, exposed Google Gemini as the initial provider option, and placed Provider as the first field in Models settings.
+Output: Models settings now starts with a provider selector that defaults to Google Gemini; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 24: Add provider adapter architecture
+Status: Done
+Did: Added a provider adapter layer, routed Gemini through Interactions API, routed OpenAI-compatible providers through Vercel AI SDK, and persisted provider-specific keys/models.
+Output: Google Gemini, OpenAI, DeepSeek, and OpenRouter are selectable providers; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 25: Add answer language preferences
+Status: Done
+Did: Added persisted default answer language settings and a per-question answer language override in the chat composer.
+Output: Requests now resolve `default` to the saved language before calling the AI provider; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 26: Add conversation auto-scroll momentum
+Status: Done
+Did: Added a tested near-bottom scroll-follow helper, wired the conversation panel to smooth-scroll during sends and replies, and enabled native scroll momentum on the scroll container.
+Output: New answers now auto-follow when the user is near the latest message while preserving manual scroll position after the user scrolls up; `npm run test -- src/renderer/src/layout.test.ts`, `npm run typecheck`, and `npm run build` pass.
+
+## Step 27: Hide prompt settings outside development
+Status: Done
+Did: Added environment-gated settings visibility helpers and hid the Prompts settings navigation/content outside renderer development builds.
+Output: Prompts remains available in development and falls back to Models in production; `npm run test -- src/renderer/src/layout.test.ts`, `npm run typecheck`, and `npm run build` pass.
+
+## Step 28: Show router prompt design in settings
+Status: Done
+Did: Added shared Router/card prompt design definitions and rendered them as read-only prompt previews in Settings > Prompts, while keeping the editable system prompt development-only.
+Output: Settings now shows Router, word, phrase/collocation/pattern, and sentence prompt designs; `npm run test -- src/shared/prompt-design.test.ts src/renderer/src/layout.test.ts`, `npm run typecheck`, and `npm run build` pass.
+
+## Step 29: Hide model names until API key exists
+Status: Done
+Did: Added a tested provider model visibility helper and applied it to the Models form and chat composer model label.
+Output: Model names stay empty until the selected provider has a saved/env key or the user types a new API key; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 30: Remove editable system prompt display
+Status: Done
+Did: Removed the development-only editable system prompt block from Settings > Prompts and deleted stale prompt-visibility helpers/tests.
+Output: Prompts now only shows read-only Router/card prompt design; `npm run test -- src/renderer/src/layout.test.ts src/shared/prompt-design.test.ts`, `npm run typecheck`, and `npm run build` pass.
+
+## Step 31: Restore read-only system prompt preview
+Status: Done
+Did: Restored the configured system prompt in Settings > Prompts as a read-only preview before the Router/card prompt designs.
+Output: System prompt is visible but not editable; `npm run test -- src/renderer/src/layout.test.ts src/shared/prompt-design.test.ts`, `npm run typecheck`, and `npm run build` pass.
+
+## Step 32: Add Mail-style Asks and Notes layout
+Status: Done
+Did: Reworked the app shell into a Mail-style three-pane layout with a primary navigation rail, a middle Asks/Notes list panel, and a right detail workspace.
+Output: Asks shows ask actions/history in the middle list and the chat on the right; Notes has its own list/detail placeholder; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 33: Add ask creation action to list header
+Status: Done
+Did: Added the provided plus SVG as a header action in the Asks list panel and wired it to create/select a new ask session.
+Output: Users can create a new ask from the middle column header; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 34: Add ask search action to list header
+Status: Done
+Did: Added the provided search SVG as a header action in the Asks list panel and restored ask history filtering behind an expandable search field.
+Output: Clicking the search icon opens a search box below the header row and filters ask history; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 35: Focus new asks after creation
+Status: Done
+Did: Added stable recent-session sorting and focused/scrolled the newly created ask list item after clicking the new ask action.
+Output: Creating a new ask clears active history search, selects the new ask, and moves focus to its list row; `npm run test -- src/renderer/src/chat-history.test.ts`, `npm run typecheck`, and `npm run build` pass.
+
+## Step 36: Add Markdown editor for Notes
+Status: Done
+Did: Added `@uiw/react-md-editor` with sanitized preview support and replaced the Notes empty workspace with a Markdown editing surface.
+Output: Notes now has a usable Markdown editor in the right workspace; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 37: Hide Markdown editor toolbar
+Status: Done
+Did: Enabled the Markdown editor's toolbar-free mode and removed the unused toolbar-specific Notes styles.
+Output: Notes keeps Markdown editing support without showing formatting buttons; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 38: Make Notes Markdown preview live
+Status: Done
+Did: Set the Notes Markdown editor preview mode explicitly to `live`.
+Output: Notes shows Markdown formatting in real time while editing; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 39: Use in-editor Markdown live preview
+Status: Done
+Did: Replaced the split-preview Markdown editor with MDXEditor, enabled Markdown shortcut plugins, removed the old editor dependencies, and styled the editable area as the live-rendered Notes surface.
+Output: Notes now renders Markdown formatting directly inside the editor area without toolbar buttons; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 40: Add local image insertion for Notes
+Status: Done
+Did: Added a local note-image IPC path, validated and saved PNG/JPEG/GIF/WebP files under app user data, exposed the bridge to the renderer, and enabled MDXEditor image uploads for Notes.
+Output: Notes can insert local images through the editor image plugin and stores them as `file://` assets; `npm run test -- src/main/note-assets.test.ts`, `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 41: Match Notes list header actions with Asks
+Status: Done
+Did: Added Notes search/new-note header buttons matching the Asks list panel, made Notes search expand on demand, and wired the new-note action to reset the current note draft.
+Output: Notes now has the same right-side plus and search icons as Asks; `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 42: Add configurable local Notes storage
+Status: Done
+Did: Added validated default/custom Notes directory settings and preserved the custom directory across unrelated settings saves.
+Output: Settings state now exposes the active local Notes directory and its source; targeted settings tests and `npm run typecheck` pass.
+
+## Step 43: Add filesystem-backed Notes operations
+Status: Done
+Did: Added validated Markdown note create/list/read/atomic-save operations, typed IPC bridges, and colocated note image assets under the active Notes directory.
+Output: Notes now persist as local UUID-named `.md` files with size/path safeguards; 12 targeted storage/settings tests and `npm run typecheck` pass.
+
+## Step 44: Connect Notes list and editor persistence
+Status: Done
+Did: Connected the Notes list, search, selection, creation, Markdown loading, and debounced autosave to the filesystem IPC bridge.
+Output: Users can create and reopen persisted notes, with list titles derived from Markdown and visible save status; targeted renderer/storage tests and `npm run typecheck` pass.
+
+## Step 45: Expose Notes directory controls in Settings
+Status: Done
+Did: Added a Storage settings section with a native folder chooser, current path/source display, and a restore-default action that reloads Notes from the selected directory.
+Output: Users can switch Notes between the app-local default folder and another local folder; 14 targeted tests and `npm run typecheck` pass.
+
+## Step 46: Verify local Notes storage end to end
+Status: Done
+Did: Added an integration test proving the configured directory receives both Markdown files and note image assets, then ran all project verification commands.
+Output: `git diff --check`, all 69 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 47: Edit existing Markdown files in Notes
+Status: Done
+Did: Expanded Notes discovery and safe file IDs to include every regular `.md` file in the configured directory, then preserved original filenames and permissions during atomic saves.
+Output: Existing Markdown files with normal names, spaces, and case variations can be opened and edited in Notes; `git diff --check`, all 70 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 48: Use Obsidian-style note filenames
+Status: Done
+Did: Changed note titles to come only from filenames, added `Untitled`, `Untitled 1`, and later collision-safe creation, and added validated non-overwriting file rename IPC.
+Output: Markdown content no longer changes the note name, and local files can be safely renamed while respecting filesystem constraints; targeted storage tests and `npm run typecheck` pass.
+
+## Step 49: Add Obsidian-style note rename interactions
+Status: Done
+Did: Added filename editing after note creation, from the active editor title/F2, and from the Notes list context menu, with Enter/blur commit and Escape cancellation.
+Output: Notes now expose Obsidian-style filename editing surfaces and natural filename sorting; targeted backend/renderer tests and `npm run typecheck` pass.
+
+## Step 50: Verify Obsidian-style filename behavior
+Status: Done
+Did: Added end-to-end configured-directory rename coverage and verified filename-derived titles, default-name collision handling, non-overwriting renames, and natural filename ordering.
+Output: `git diff --check`, all 73 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 51: Keep settings save action only under Models
+Status: Done
+Did: Removed the Language page `Save settings` submit action and left the Models page as the only settings save entry.
+Output: `Save settings` appears only once under Models; `rg -n "Save settings|isSavingSettings \\? 'Saving'" src/renderer/src/App.tsx`, `npm run typecheck`, `npm run test`, and `npm run build` pass.
+
+## Step 52: Enforce unique note names and repair Notes loading
+Status: Done
+Did: Added serialized, case-insensitive, Unicode-normalized name conflict checks for note creation and rename, and fixed the stale Notes loader reference to `sortNotesByFileName`.
+Output: Duplicate names cannot be created or introduced by rename on any supported filesystem, while case-only self-renames remain valid; `git diff --check`, all 75 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 53: Add a constrained Notes column resizer
+Status: Done
+Did: Added a persisted pointer/keyboard Notes list resizer with named minimum/maximum constraints and guaranteed remaining width for the editor workspace.
+Output: The Notes column can be resized without horizontal scrolling, while mobile layout hides the divider; targeted layout tests and `npm run typecheck` pass.
+
+## Step 54: Verify Notes column resize behavior
+Status: Done
+Did: Added automated boundary coverage and exercised the live Electron divider from 220px to 318px and back past the lower bound.
+Output: The live UI clamps at the 220px minimum and keeps note names clipped without horizontal scrolling; `git diff --check`, all 79 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 55: Add recoverable note deletion
+Status: Done
+Did: Added validated, serialized note trash operations through Electron system Trash IPC and exposed Delete in the Notes context menu with active-note fallback selection.
+Output: Right-click deletion is recoverable from the operating system Trash and safely transitions the editor to the next note or empty state; targeted storage/renderer tests and `npm run typecheck` pass.
+
+## Step 56: Verify Notes context-menu deletion
+Status: Done
+Did: Added recoverable trash-operation coverage and exercised the restarted Electron app by creating `Untitled 5`, opening its context menu, and deleting it through the new IPC.
+Output: The live note disappeared without an error and was moved to system Trash; `git diff --check`, all 80 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 57: Confirm before deleting a note
+Status: Done
+Did: Added a parented native warning dialog that returns an explicit canceled/deleted result before any system Trash operation.
+Output: Canceling keeps the Markdown file and current Notes state intact, while confirming moves it through Electron `shell.trashItem`; targeted tests and `npm run typecheck` pass.
+
+## Step 58: Verify confirmed note deletion
+Status: Done
+Did: Added cancellation/confirmation coverage and exercised the restarted Electron app with the temporary `Delete confirmation QA.md` note through both dialog actions.
+Output: Cancel kept the live note selected and present; `Move to Trash` removed it and selected the next note, while `git diff --check`, all 82 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 59: Preserve complete Notes item rounding
+Status: Done
+Did: Constrained the Notes grid track, item buttons, and rename forms to the visible column width before applying horizontal clipping.
+Output: Long filenames now ellipsize inside a complete rounded hover/active rectangle without restoring horizontal scrolling; targeted style/layout tests and `npm run typecheck` pass.
+
+## Step 60: Verify Notes item hover geometry
+Status: Done
+Did: Added a CSS regression assertion and visually exercised a selected long-filename note in the live Electron app at the 220px minimum Notes width.
+Output: The long title ellipsizes inside the item and both background corners remain fully visible; `git diff --check`, all 83 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 61: Centralize answer language in Settings
+Status: Done
+Did: Removed the per-ask language selector, its renderer state/styles, and the request override path while preserving the saved global language setting.
+Output: Every answer now uses the language selected in Settings; `git diff --check`, all 82 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 62: Confirm before deleting Asks
+Status: Done
+Did: Added a tested Asks deletion confirmation helper and wired the Asks context-menu Delete action through `window.confirm` before mutating local chat history.
+Output: Deleting an ask now shows a confirmation dialog and cancellation leaves history unchanged; targeted chat-history tests, all 83 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 63: Replace delete confirmations with app modal UI
+Status: Done
+Did: Replaced `window.confirm` and Electron `showMessageBox` delete confirmations with a shared renderer modal styled for the app, and moved Notes trash confirmation ahead of the delete IPC call.
+Output: Asks and Notes delete actions now use the in-app confirmation modal; targeted tests, all 83 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass.
+
+## Step 64: Restyle Notes as a document editor
+Status: Done
+Did: Elevated the active filename to an accessible level-one document heading and restyled the Notes workspace and Markdown body to match the supplied title-first reference.
+Output: The filename is the first visual row without being duplicated into Markdown, while title click/F2 rename, autosave state, and Markdown editing remain intact; targeted UI tests and `npm run typecheck` pass.
+
+## Step 65: Verify the Notes document layout
+Status: Done
+Did: Added structural/style regression coverage and exercised short-title, long-title, and click-to-rename states in the live Electron Notes workspace.
+Output: `Untitled` renders as the first H1-scale row above the rounded Markdown surface, long filenames remain contained, and `git diff --check`, all 85 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 66: Wrap multiline Notes titles
+Status: Done
+Did: Replaced single-line title ellipsis with natural multiline wrapping and break opportunities for long uninterrupted filenames.
+Output: Notes titles now expand vertically within the H1 row without changing the underlying filename or Markdown content; targeted UI tests and `npm run typecheck` pass.
+
+## Step 67: Verify multiline title layout
+Status: Done
+Did: Extended the Notes document UI regression assertion and exercised a UUID filename wrapping across two H1 lines in the live Electron app.
+Output: The title grows vertically, the Markdown surface follows below it, and `git diff --check`, all 85 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 68: Match the filename title to Markdown H1
+Status: Done
+Did: Introduced one Notes H1 font-size variable and applied it to the filename title, title rename input, and Markdown H1 rendering.
+Output: All three title surfaces now use the same `1.75rem` size while preserving multiline wrapping; targeted UI tests and `npm run typecheck` pass.
+
+## Step 69: Verify shared H1 sizing
+Status: Done
+Did: Extended the Notes UI regression assertion and compared the filename title with a rendered Markdown H1 in the live Electron editor.
+Output: Both surfaces use the shared `1.75rem` size, multiline wrapping remains intact, and `git diff --check`, all 85 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 70: Make the filename title directly editable
+Status: Done
+Did: Replaced the title button/form swap with one always-rendered, auto-sizing title text field that begins editing at the clicked caret position.
+Output: Enter or blur commits a changed filename, Escape restores it, unchanged blur is a no-op, and multiline visual wrapping remains supported; targeted UI/note tests and `npm run typecheck` pass.
+
+## Step 71: Verify direct title editing
+Status: Done
+Did: Extended the Notes UI regression assertion and exercised click-focus, direct typing, and Escape restoration on the live Electron title field without committing a user file change.
+Output: The title remains one continuous editable surface with no button-to-form transition, and `git diff --check`, all 85 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 72: Make the full Notes body directly focusable
+Status: Done
+Did: Removed the Markdown card surface, stretched a transparent text-cursor region from below the title to the workspace bottom, and focused blank-area clicks through the editor ref.
+Output: Clicking blank body space places the caret at the Markdown root start while clicks on rendered text retain native caret placement; targeted UI tests and `npm run typecheck` pass.
+
+## Step 73: Verify full-height body editing
+Status: Done
+Did: Extended the Notes UI regression assertion and clicked the live Electron workspace bottom to verify focus transfers into the Markdown contenteditable without modifying note text.
+Output: The body is transparent and full-height, blank-area clicks focus the editor, and `git diff --check`, all 85 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 74: Remove explicit Notes save status
+Status: Done
+Did: Removed the Notes `Saved / Saving…` element, its renderer state, and its now-unused styles while retaining save errors.
+Output: Notes presents no explicit save-status UI; Markdown changes keep the 400ms autosave and title changes save implicitly on Enter or blur; targeted UI/storage tests and `npm run typecheck` pass.
+
+## Step 75: Verify implicit Notes autosave
+Status: Done
+Did: Added regression assertions for the absent save-status state and the retained body/title autosave triggers, then ran the complete renderer and storage suites.
+Output: Notes has no `Saved / Saving…` UI, automatic persistence and error reporting remain active, and `git diff --check`, all 85 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 76: Keep the editable title visually neutral
+Status: Done
+Did: Removed the editable title's hover/focus background selectors and replaced its transparent placeholder border with no border.
+Output: Hovering or focusing the title no longer changes its surface; only the text caret indicates editing, and targeted UI tests plus `npm run typecheck` pass.
+
+## Step 77: Verify neutral title interaction states
+Status: Done
+Did: Added regression assertions forbidding title hover/focus selectors and exercised the focused title field in the live Electron Notes workspace.
+Output: Focus leaves the title surface transparent and borderless while caret editing remains available; `git diff --check`, all 85 tests, `npm run typecheck`, and `npm run build` pass.
+
+## Step 78: Move the Notes scrollbar to the right edge
+Status: Done
+Did: Extended the Notes editor scroll container to the workspace right edge while preserving the document's visual right padding inside the Markdown content.
+Output: The vertical scrollbar now occupies the far-right edge with a gray thumb, transparent track, and stable gutter; targeted UI tests and `npm run typecheck` pass.
+
+## Step 79: Verify the Notes scrollbar styling
+Status: Done
+Did: Added scrollbar placement and color regression assertions, then exercised a content-heavy note by scrolling the live Electron editor.
+Output: The visible gray thumb appears at the workspace's far-right edge; `git diff --check`, all 85 tests, and `npm run build` pass.
+
+## Step 80: Align the Asks and Notes list panels
+Status: Done
+Did: Applied one shared constrained list layout and resize-handle treatment to Asks and Notes, with independent persisted widths and identical pointer/keyboard resizing.
+Output: Both list columns keep complete rounded hover surfaces, prevent horizontal sliding, and resize within the same named minimum/maximum bounds; targeted tests and `npm run typecheck` pass.
+
+## Step 81: Verify matching list-panel behavior
+Status: Done
+Did: Added shared layout, rounded-surface, persisted-width, pointer-resize, and keyboard-resize regression coverage, then inspected the live Electron Asks panel.
+Output: Asks exposes the same constrained resize separator and complete rounded item surfaces as Notes; `git diff --check`, all 90 tests, and `npm run build` pass.
+
+## Step 82: Remove Notes content bottom padding
+Status: Done
+Did: Changed only the Notes Markdown content container's bottom padding from 40px to 0 while preserving its top and horizontal spacing.
+Output: Note content now reaches the bottom edge without the previous extra inset; the targeted UI test and `npm run typecheck` pass.
+
+## Step 83: Verify the Notes content bottom edge
+Status: Done
+Did: Added a regression assertion for the four-sided Notes content padding and ran the complete renderer and production-build checks.
+Output: The bottom padding remains fixed at 0 without changing the other content insets; `git diff --check`, all 90 tests, and `npm run build` pass.
+
+## Step 84: Rebalance Notes title spacing
+Status: Done
+Did: Split the Notes workspace's vertical inset into named top/bottom values, reduced the responsive top inset, and increased the title-to-body focus-area gap from 20px to 32px.
+Output: The title sits higher while the Markdown content starts farther below it; targeted UI tests and `npm run typecheck` pass.
+
+## Step 85: Verify Notes title placement
+Status: Done
+Did: Added regression assertions for the reduced responsive title-top inset and enlarged title-to-content spacing, then ran the complete validation suite.
+Output: The new vertical rhythm remains explicit without affecting the zero content-bottom padding; `git diff --check`, all 90 tests, and `npm run build` pass.
+
+## Step 86: Tighten the Notes title-to-content gap
+Status: Done
+Did: Reduced the Notes title-to-content focus-area spacing from 32px to 24px without changing the title's top position or Markdown content padding.
+Output: The title and body now sit closer together while retaining a slightly larger gap than the original 20px; targeted UI tests and `npm run typecheck` pass.
+
+## Step 87: Verify the tightened Notes spacing
+Status: Done
+Did: Updated the title-to-content spacing regression assertion and ran the complete renderer and production-build checks.
+Output: The 24px gap remains isolated from the title-top and content-bottom rules; `git diff --check`, all 90 tests, and `npm run build` pass.
+
+## Step 88: Extend the Notes editor to the app bottom
+Status: Done
+Did: Removed the Notes workspace's remaining responsive bottom padding while preserving its top and left insets.
+Output: The full-height editor now reaches the application's bottom edge, with both the editor content and outer workspace bottom padding set to 0; targeted UI tests and `npm run typecheck` pass.
+
+## Step 89: Verify the flush Notes bottom edge
+Status: Done
+Did: Added a regression assertion for the zero workspace bottom inset and verified the existing zero Markdown-content bottom inset in the full validation suite.
+Output: No Notes padding layer can recreate the editor-to-app bottom gap; `git diff --check`, all 90 tests, and `npm run build` pass.
+
+## Step 90: Strengthen the three knowledge-card prompts
+Status: Done
+Did: Added a shared strict-JSON card contract and strengthened the word, phrase/collocation/pattern, and sentence prompts with deterministic defaults, intent handling, and type-specific learning rules.
+Output: The read-only Prompts settings view now shows the revised prompt designs; 7 targeted prompt tests, `npm run typecheck`, `git diff --check`, and `npm run build` pass.
+
+## Step 91: Add grammar-concept and comparison routing
+Status: Done
+Did: Extended the Router schema with grammar_concept and comparison classifications, ordered multi-target extraction, deterministic modules, and added dedicated prompts for both card types.
+Output: Settings now displays five read-only card prompts with one shared JSON contract; 9 targeted prompt tests, `npm run typecheck`, `git diff --check`, and `npm run build` pass.
+
+## Step 92: Expose Router diagnostics in development answers
+Status: Done
+Did: Added a development-only parallel Router classification call, strict runtime validation, non-blocking failure diagnostics, and a separate answer metadata block showing route, targets, intent, modules, and confidence.
+Output: Router diagnostics remain outside model-visible conversation content and production UI; all 106 tests, `npm run typecheck`, `git diff --check`, and `npm run build` pass, with the existing Electron dev process available for testing.
+
+## Step 93: Generate knowledge cards from Router diagnostics
+Status: Done
+Did: Added a development Router action that reuses the validated classification, selects the matching Card Prompt, validates the generated JSON, and stores the rendered card on its source assistant message.
+Output: Generated cards display below answers and persist in local chat history without entering model context; all 114 tests, `npm run typecheck`, `git diff --check`, and `npm run build` pass, and the restarted Electron dev app shows the new action.
+
+## Step 94: Replace concise chat-answer instructions
+Status: Done
+Did: Replaced the concise chat System Prompt and bilingual brevity instruction with adaptive, learner-focused guidance, and migrated both known stored concise defaults without touching custom prompts.
+Output: Existing users immediately receive fuller answers while Router and Card prompts remain unchanged; all 118 tests, `npm run typecheck`, `git diff --check`, and `npm run build` pass.
+
+## Step 95: Make structured knowledge cards the default answer
+Status: Done
+Did: Added Router response modes and changed resolved English-learning requests to generate a validated knowledge card directly from the current question and recent context, while clarification and conversational requests keep their dedicated response paths.
+Output: The renderer now treats returned cards as the primary assistant answer, persists them with chat history, and keeps Router metadata diagnostic-only; all 123 tests, `npm run build`, and `git diff --check` pass with the development app still running.
+
+## Step 96: Normalize empty optional Router text
+Status: Done
+Did: Normalized null or omitted Router focusText and clarificationQuestion values to empty strings while retaining strict validation for required fields and non-empty clarification questions.
+Output: Single-word routes such as turkey no longer fail on empty optional text; the Router prompt now explicitly forbids null for those fields, all 124 tests and the production build pass, and the Electron development app has been restarted with the fix.
+
+## Step 97: Preserve Ask conversation scroll positions
+Status: Done
+Did: Added per-ask conversation scroll position caching, restored the saved position during ask switches, and kept smooth auto-follow only for new content.
+Output: Switching between asks no longer animates to the bottom when a saved position exists; targeted scroll helper/UI tests and `npm run typecheck` pass.
+
+## Step 98: Make restored Ask scrolling instant
+Status: Done
+Did: Removed the global smooth scroll behavior from the Ask conversation container while keeping explicit smooth scrolling for new content follow-up.
+Output: Restoring a previous Ask position now jumps directly to the saved offset; targeted style/scroll tests, `npm run typecheck`, and `git diff --check` pass.
+
+## Step 99: Apply bilingual formatting to knowledge cards
+Status: Done
+Did: Added structured JSON answer-language instructions and wired Card Prompt generation through the same configured answer-language path.
+Output: Knowledge-card answers now receive explicit Simplified Chinese, `---`, then English formatting rules for `answer` and `sections[].content`; targeted main-process tests, `npm run typecheck`, and `git diff --check` pass.
+
+## Step 100: Make bilingual knowledge cards deterministic
+Status: Done
+Did: Changed bilingual card generation to produce separate Chinese and English cards, then combine them into one Markdown answer separated by `---`.
+Output: Card-style bilingual answers now render as one complete Chinese answer followed by one complete English answer; targeted main-process tests and `npm run typecheck` pass.
+
+## Step 101: Show model refresh only for dynamic providers
+Status: Done
+Did: Added an explicit provider capability check, rendered the refresh action only for Gemini, removed the static-list reset behavior from refresh, and updated DeepSeek defaults to V4 Flash and V4 Pro.
+Output: OpenAI, DeepSeek, and OpenRouter now hide the unsupported refresh action while retaining their static model selectors; all 146 tests, `npm run build`, and `git diff --check` pass.
+
+## Step 102: Load DeepSeek models dynamically
+Status: Done
+Did: Added a validated provider-neutral model-list IPC, connected DeepSeek to its official authenticated `/models` endpoint, and allowed both saved and newly typed API keys to refresh Gemini or DeepSeek models.
+Output: DeepSeek now refreshes current model IDs, removed selections are visibly marked and cannot be saved until replaced, and unsupported providers retain static lists; all 153 tests, `npm run build`, `git diff --check`, and legacy-channel checks pass.
+
+## Step 103: Cancel active AI requests
+Status: Done
+Did: Added request-scoped AbortController management, a cancellation IPC bridge, provider signal propagation, stale-result protection, and a stop control in the Ask composer.
+Output: Active Router, card, Gemini, and OpenAI-compatible requests can now be stopped without late answers being appended; all 162 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass, with the development app running at `http://localhost:5173/`.
+
+## Step 104: Create a Note from a successful answer
+Status: Done
+Did: Added a compact action after persisted assistant answers and atomically writes the rendered answer Markdown into a new local Note.
+Output: The restored `Create note` action prevents duplicate clicks, shows progress, and opens the populated Note; covered by the Step 108 validation suite.
+
+## Step 105: Verify answer-to-Note creation
+Status: Done
+Did: Restored renderer and storage regression coverage after the concurrent Ask changes and verified the complete answer-to-Note flow together with question-derived titles.
+Output: Answer content creation, button state, styling, workspace switching, and local Markdown persistence pass within all 171 tests and `npm run build`.
+
+## Step 106: Make empty Ask submission silent
+Status: Done
+Did: Disabled Send for blank or whitespace-only input and changed empty keyboard submissions to return silently without setting an error.
+Output: The composer no longer shows `Enter a question first.` for an invalid empty action; all 163 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass, and the running app received the update through HMR.
+
+## Step 107: Use the source question as the generated Note title
+Status: Done
+Did: Restored the answer-to-Note renderer action after the concurrent Ask update, linked each assistant answer to its nearest preceding user question, normalized that question for local filenames, and passed it into atomic Note creation.
+Output: Generated Notes use the source question as their title and append an Obsidian-style numeric suffix on conflicts without overwriting existing files; targeted tests and `npm run typecheck` pass.
+
+## Step 108: Verify question-derived Note titles
+Status: Done
+Did: Added regression coverage for assistant-to-question matching, invalid filename character replacement, Unicode-safe title limits, atomic custom-name creation, duplicate-name suffixes, and restored button wiring.
+Output: Question-derived titles remain filesystem-safe and collision-free while preserving the complete answer Markdown; `git diff --check`, all 171 tests, and `npm run build` pass.
+
+## Step 109: Remove the stale loading cursor after stopping
+Status: Done
+Did: Changed the disabled Ask composer button from the wait cursor to a neutral default cursor while preserving genuine loading cursors elsewhere.
+Output: Hovering Send after a stopped request no longer shows a loading tail; all 172 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass, with the development app running at `http://localhost:5174/`.
+
+## Step 110: Localize bilingual knowledge-card headings
+Status: Done
+Did: Added deterministic Simplified Chinese labels for every knowledge-card module when formatting the Chinese half of bilingual answers, while preserving the existing English labels in the English half.
+Output: Bilingual cards now render headings such as `含义`, `用法`, `常见搭配`, and `例句` before `---`, then `Meaning`, `Usage`, `Collocations`, and `Examples`; all 176 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass.
+
+## Step 111: Align bilingual knowledge-card content
+Status: Done
+Did: Changed bilingual generation to build the English card from the completed Chinese reference card, added strict counterpart instructions, and rejected English cards whose module count or order differs from the Chinese card.
+Output: New bilingual answers now keep matching section structure and corresponding content across Chinese and English while retaining localized headings and the `---` separator; all 177 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass.
+
+## Step 112: Remove bilingual answer mode
+Status: Done
+Did: Removed Bilingual from the answer-language options and type, deleted the two-pass bilingual card generation and alignment code, and mapped legacy stored `bilingual` values to Chinese.
+Output: Settings now offers only Chinese and English, each Ask uses one model generation path, and existing bilingual preferences load as Chinese without rewriting old chat content; all 174 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass.
+
+## Step 113: Auto-save answer language changes
+Status: Done
+Did: Added immediate answer-language persistence using the already saved provider, model, and system prompt, with optimistic selection, failure rollback, and API-key preservation.
+Output: Choosing Chinese or English in Settings now takes effect for the next Ask without a separate save button or accidental model-draft persistence; all 176 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass, and the current app preference is synchronized to English.
+
+## Step 114: Add AI-formatted Ask-to-Note operations
+Status: Done
+Did: Added a validated Ask-to-Note IPC and AI service that sends the complete conversation for new Notes, or the conversation plus current Markdown for updates, and parses bounded structured Markdown output.
+Output: Create and update operations use the configured provider/model/language, preserve unrelated existing material during updates, and pass targeted service, storage, and type checks.
+
+## Step 115: Move Note actions to the Ask toolbar
+Status: Done
+Did: Removed per-answer Note buttons, added one sticky toolbar at the top of completed Ask content, and added an inline existing-Note picker for AI-assisted updates.
+Output: Each Ask now exposes exactly `New note` and `Update note`; both send the full rendered conversation to AI, and update additionally loads, formats, saves, and opens the selected Note; targeted UI tests and `npm run typecheck` pass.
+
+## Step 116: Verify unified Ask Note operations
+Status: Done
+Did: Added AI service validation and renderer regression coverage, exercised the unified toolbar and existing-Note picker in the restarted Electron app without invoking AI or modifying Note data, and ran the complete suite.
+Output: Per-answer Note buttons are gone; the top toolbar and picker render correctly, full-conversation create/update pipelines are covered, and `git diff --check`, all 179 tests, `npm run build`, and live UI inspection pass.
+
+## Step 117: Add editable Markdown source mode to Notes
+Status: Done
+Did: Added a toolbar-free Preview/Markdown mode control backed by MDXEditor source mode, defaulted Notes to editable Markdown source, and styled the source editor for the existing dark Notes workspace.
+Output: Notes now expose and allow direct editing of markers such as `###` while retaining rendered Preview mode and existing autosave behavior; all 179 tests, `npm run build`, `git diff --check`, and live UI inspection pass.
+
+## Step 118: Replace Notes modes with Markdown live preview
+Status: Done
+Did: Replaced the separate Preview/Markdown modes with a CodeMirror live-preview editor that renders common Markdown outside the focused line, reveals source markers on the focused line, and preserves autosave plus local image paste/drop handling.
+Output: Notes now provide Obsidian-style line editing for headings and other common Markdown syntax; all 184 tests, `npm run build`, `git diff --check`, dependency validation, and isolated Electron rendering/focus checks pass.
+
+## Step 119: Render GFM tables in Notes live preview
+Status: Done
+Did: Added GFM table parsing and a native table preview with header, row, border, escaped-pipe, and column-alignment support, and moved live-preview decorations to a StateField so multiline table replacements are valid.
+Output: Tables render as structured tables outside the active table and return to editable Markdown when focused; all 186 tests, `npm run build`, `git diff --check`, and isolated Electron table rendering pass without modifying Note data.
+
+## Step 120: Add Notes editor bottom spacing
+Status: Done
+Did: Added a responsive Notes editor bottom-padding variable and applied it to the CodeMirror content surface.
+Output: The final Note line now retains 56-96px of bottom breathing room across window heights; the targeted layout test, `npm run build`, and `git diff --check` pass.
+
+## Step 121: Make live-preview tables editable on click
+Status: Done
+Did: Added a deterministic table-widget mouse handler that moves the CodeMirror selection to the table source and focuses the editor, plus regression coverage for the dispatched selection.
+Output: Clicking any preview table cell now replaces the rendered table with editable `| ... |` Markdown lines; all 187 tests, `npm run build`, `git diff --check`, and isolated Electron click verification pass without modifying Note data.
+
+## Step 122: Simplify the empty Notes workspace
+Status: Done
+Did: Removed the inactive Notes editor shell, title field, bordered empty card, and empty-state copy when no Note is selected, and applied a zero-padding pure-black workspace modifier.
+Output: The Notes list remains intact while its empty right workspace is completely black; all 188 tests, `npm run build`, `git diff --check`, browser runtime inspection, console checks, and normalized visual QA pass.
+
+## Step 123: Plan Ask Notes by semantic topic
+Status: Done
+Did: Added validated AI topic segmentation that partitions the complete Ask by message ID, preserves chronology, requires complete user/assistant topics, and supplies successful Router targets as routing hints.
+Output: Planning now rejects missing, duplicated, or invented message assignments; service, parser, IPC bridge, preload, targeted tests, and `npm run typecheck` pass.
+
+## Step 124: Add multi-topic Note creation choices
+Status: Done
+Did: Added a topic-selection surface with selectable semantic topics, separate-Note creation, explicit merging, chronological message filtering, and cancellation/reset behavior.
+Output: A live two-topic Ask was correctly presented as `develop` and `cold turkey` with `Create 2 notes` and `Merge selected`; targeted renderer, helper, service tests and `npm run typecheck` pass.
+
+## Step 125: Keep existing Note updates topic-relevant
+Status: Done
+Did: Made the selected existing Note title and Markdown the authoritative update scope, instructed formatting to ignore unrelated Ask topics, and return unchanged Markdown when no relevant new material exists.
+Output: Multi-topic update regression coverage passes; all 198 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass.
+
+## Step 126: Localize knowledge-card headings by answer language
+Status: Done
+Did: Added complete Chinese module labels, stored the selected answer language on new assistant messages, and inferred the language of legacy cards from their direct answer.
+Output: Chinese cards render headings such as `含义`, `音标`, `用法`, and `例句`, while English cards retain their existing English headings.
+
+## Step 127: Simplify Ask Note action buttons
+Status: Done
+Did: Removed the repeated Notes glyphs from the `New note` and `Update note` toolbar buttons while preserving their labels, states, and actions.
+Output: The Ask Note toolbar now uses clean text-only action buttons; targeted UI and type checks pass.
+
+## Step 127: Preserve original answers in new Notes
+Status: Done
+Did: Removed the second AI formatting pass from new-Note creation, preserved topic-scoped assistant Markdown exactly, and restored each topic's original user question as its generated filename source.
+Output: AI now only plans topics for new Notes; all 202 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass.
+
+## Step 128: Render GFM tables in Ask answers
+Status: Done
+Did: Extracted the existing GFM table parser for shared Ask/Notes use and added native Ask table rendering with inline Markdown, alignment, responsive overflow, and matching dark styling.
+Output: Valid and invalid table boundaries are covered; all 204 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass.
+
+## Step 129: Reduce Ask Note action prominence
+Status: Done
+Did: Replaced the sticky floating Notes toolbar styling with a normal-flow divider row and softened its label and text-only actions.
+Output: Note actions now scroll with the Ask content and no longer use a card background, outline, shadow, or full-width mobile buttons; targeted tests and live Electron inspection pass.
+
+## Step 130: Recover empty Router responses
+Status: Done
+Did: Switched Router classification to provider JSON Output, introduced a typed empty-response error, and added one selective retry without retrying unrelated provider failures.
+Output: Repeating the failed `cold turkey` request now produces a successful `phrase / explain_meaning / card` classification; all 206 tests, `npm run build`, and `git diff --check` pass.
+
+## Step 131: Add pronunciation playback to Ask answers
+Status: Done
+Did: Added a compact target-level pronunciation control to structured Ask answers using the system English speech synthesizer, preferred an American English voice, and handled stop, completion, errors, and workspace/session changes.
+Output: Words, phrases, and sentences can be played or stopped without changing their Markdown; all 210 tests, `npm run build`, `git diff --check`, and live Electron playback/state checks pass.
+
+## Step 132: Clarify the active pronunciation control
+Status: Done
+Did: Replaced the outline square shown during playback with a filled pause icon while preserving the existing stop action and fixed button dimensions.
+Output: The active pronunciation state no longer resembles an empty placeholder; all 210 tests, `npm run build`, and `git diff --check` pass.
+
+## Step 133: Refine the pronunciation pause icon
+Status: Done
+Did: Removed the pause icon fill, reduced it to 14px, and lowered its stroke width to 1.8 while keeping the 28px click target unchanged.
+Output: The playback state now uses a lighter, smaller pause mark; targeted tests, `npm run build`, and `git diff --check` pass.
+
+## Step 134: Hold long Ask answers at their first line
+Status: Done
+Did: Added completed-answer overflow measurement and instant start positioning while preserving normal bottom following for short answers and respecting manual scrolling during generation.
+Output: Long answers now open at their first line instead of auto-scrolling to the end; all 214 tests, `npm run build`, and `git diff --check` pass.
+
+## Step 135: Translate examples in Chinese answers
+Status: Done
+Did: Strengthened the shared conversational and structured Chinese answer instructions, plus the common Card Prompt contract, to require an immediate natural Chinese translation after every complete English example unless English-only examples are explicitly requested.
+Output: Word, phrase, collocation, pattern, sentence, grammar, comparison, and conversational Chinese answers now share the paired-example rule; all 222 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass, with the existing development server listening at `http://localhost:5173/`.
+
+## Step 136: Standardize phonetic answer formatting
+Status: Done
+Did: Added a shared exact UK/US IPA Prompt contract and deterministic phonetic-section normalization that removes prose, restores UK-first ordering, and combines identical pronunciations.
+Output: New phonetic sections render only as `- **UK:** /.../` plus `- **US:** /.../`, or `- **UK/US:** /.../` when identical; all 224 tests, `npm run build`, and `git diff --check` pass, with the development server listening at `http://localhost:5173/`.
+
+## Step 137: Recover malformed Router output
+Status: Done
+Did: Preserved non-empty raw structured output for Router extraction, wrapped malformed JSON and invalid classifications as recoverable Router output errors, and added one retry with a strict correction instruction while excluding provider failures.
+Output: The observed `nerve damage` error `Router output is not valid JSON.` now receives one selective recovery attempt and resolves to a collocation card in regression coverage; all 227 tests, `npm run build`, and `git diff --check` pass, with the development server listening at `http://localhost:5173/`.
+
+## Step 138: Preserve numbering in translated example lists
+Status: Done
+Did: Used the existing Lezer Markdown parser for list boundaries, preserved ordered-list start values and translation line breaks, and added shared Card Prompt guidance for numbered example pairs.
+Output: Translations no longer break valid example lists into repeated first items, and genuinely separated lists keep their source numbering; parser, HTML rendering, CSS, and Prompt regressions pass within all 237 tests, `npm run build`, and `git diff --check`, with the existing development app running at `http://localhost:5173/`.
+
+## Step 139: Use cached neural pronunciation
+Status: Done
+Did: Added typed main-process Edge JennyNeural MP3 generation, validated and escaped speech text, deduplicated atomic disk caching, bounded connection and download time, and renderer playback with cancellation and system speech fallback.
+Output: Live IPC, neural audio playback, and offline cache reuse are verified; validation, cache, cleanup, timeout, and playback wiring regressions pass within all 237 tests, and `npm run build` passes.
+
+## Step 140: Reduce Ask answer bottom spacing
+Status: Done
+Did: Reduced conversation bottom padding from 138px to 28px, matching its top padding without changing the composer or scroll logic.
+Output: A focused spacing regression and all 238 tests pass, along with `npm run build`; the existing development server remains available at `http://localhost:5173/`.
+
+## Step 141: Expose answer classification types in Router diagnostics
+Status: Done
+Did: Added explicit Input type and Structure rows from Router classification and a Card type row from the actual generated answer, showing None for absent cards while retaining development-only diagnostics and the existing response schema.
+Output: Field wiring and missing-card display regressions pass within all 240 tests, and `npm run build` passes.
+
+## Step 142: Isolate request lifecycle state per Ask
+Status: Done
+Did: Replaced the renderer singleton with session-keyed request lifecycle state and request-ID guards; scoped pending controls, cancellation, errors, and scroll triggers to each Ask, and made delete confirmation read current history.
+Output: Distinct Asks can submit independently while same-Ask duplicate submissions and stale completions are ignored; `npm run typecheck` passes.
+
+## Step 143: Verify concurrent Ask requests
+Status: Done
+Did: Added request-state and main-process cancellation regressions and updated UI/scroll wiring checks; exercised the actual app with an isolated in-memory mock bridge for simultaneous requests, reversed completion, independent stop/retry, stale replies, and background errors.
+Output: Browser assertions passed without model calls or real history changes; all 256 tests, `npm run build`, and `git diff --check` pass. The temporary QA page was removed and the existing dev server remains at `http://localhost:5173/`.
+
+## Step 144: Anchor completed Ask turns to their questions
+Status: Done
+Did: Anchored overflowing completed turns to their originating user question using the combined question-answer height, preserving short-turn bottom following, scroll bounds, manual-scroll protection, and per-Ask isolation.
+Output: Question-anchor, combined-height, exact-fit, clamping, scroll-position, and UI wiring regressions pass within all 256 tests; `npm run build` passes and the existing development server remains available at `http://localhost:5173/`.
+
+## Step 145: Prioritize bare English words in Router classification
+Status: Done
+Did: Added explicit bare-word vocabulary priority before conversational routing, including test-like words, case/punctuation variants, and misleading prior assistant suggestions; preserved explicit greetings and product-operation requests without changing schemas or existing history.
+Output: All 258 local tests, `npm run build`, and `git diff --check` pass. Live provider checks remain unverified: sandbox DNS failed and the escalation was rejected pending explicit approval to send synthetic test prompts to the configured provider.
+
+## Step 146: Preserve IPA after combined UK/US labels
+Status: Done
+Did: Restricted IPA token extraction to standalone slash-delimited content, excluding accent-label separators, Markdown fragments, and empty placeholders; added combined-label, repeated-normalization, and Chinese-to-English translation generation regressions.
+Output: The original corruption reproducer now preserves IPA across repeated formatting; all 269 tests, `npm run build`, and `git diff --check` pass. Existing truncated history is unchanged because its original IPA is no longer present.
+
+## Step 147: Reload backend changes during development
+Status: Done
+Did: Confirmed two running Electron main processes predate the phonetic fix and their development commands omit watch mode; enabled electron-vite dev --watch and added a startup-script regression.
+Output: All 270 tests, `npm run build`, and `git diff --check` pass. Restarting the existing instances is awaiting user confirmation to protect unsent drafts; saved history and original ports must be preserved.
+
+## Step 148: Disable audio playback for translation answers
+Status: Done
+Did: Removed pronunciation targets for translate intents and answers containing translation sections, including stored answers without Router diagnostics; left Markdown, phonetic text, and non-translation playback unchanged.
+Output: Live Electron inspection confirms the existing translation answer has no speaker while ordinary vocabulary and phrase answers retain it; all 274 tests, `npm run build`, and `git diff --check` pass.
+
+## Step 149: Remove redundant vocabulary answer introductions
+Status: Done
+Did: Omitted the introductory summary for word, phrase, collocation, and pattern meaning requests with a populated meaning section in shared chat/note formatting; retained other intents and stored data, and required complete definitions in the meaning section through shared Prompt guidance.
+Output: Intent, card type, language, missing-section, legacy-data, and note-source wiring regressions pass within all 299 tests; `npm run build` passes and the existing development server remains at `http://localhost:5173/`.
+
+## Step 150: Synchronize Notes with external Markdown changes
+Status: Done
+Did: Added two-second visible-window checks plus focus refresh for local Markdown additions, edits, renames, and deletions, with serial scans, unchanged-editor preservation, unsaved-draft protection, directory lifecycle guards, and missing-file scan tolerance.
+Output: Real temporary-directory integration tests and stale-response/lifecycle regressions pass without touching existing Notes; all 313 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass.
+
+## Step 151: Define the PostHog telemetry contract
+Status: Done
+Did: Audited FenyiDic's Electron main-process PostHog transport, anonymous installation identity, environment switches, IPC validation, and event call sites; selected a minimal EnglishAsk funnel that excludes questions, answers, Note contents, API keys, and file paths.
+Output: The integration contract covers app opens, bounded workspace views, Ask submission/outcome metadata, and Note creation source using only primitive non-content properties; PostHog remains disabled when no project key is configured.
+
+## Step 152: Implement PostHog telemetry
+Status: Done
+Did: Added a dependency-free main-process PostHog client with a persistent anonymous installation ID, current capture endpoint, timeout/error controls, opt-out/debug environment switches, strict shared event validation, and a typed renderer IPC bridge.
+Output: EnglishAsk now captures app opens, bounded workspace views, Ask submissions/outcomes, and blank-versus-Ask Note creation without sending questions, answers, Note Markdown, API keys, or file paths; the git-ignored local environment reuses FenyiDic's configured PostHog project.
+
+## Step 153: Verify PostHog telemetry
+Status: Done
+Did: Added transport, identity, property sanitization, privacy-boundary, IPC wiring, lifecycle-event, and environment-contract regressions; ran the full suite and production build, restarted the Electron development runtime, and sent one anonymous content-free connectivity event.
+Output: All 335 tests, `npm run typecheck`, `npm run build`, and `git diff --check` pass; the configured PostHog capture endpoint returned HTTP 200, the live app reports PostHog enabled without runtime errors, and its anonymous ID file exists with mode 0600.
+
+## Step 154: Add workspace-aware new-item shortcut
+Status: Done
+Did: Added a captured Cmd+N listener that reuses the active Asks or Notes creation flow, skips settings and confirmation dialogs, prevents key-repeat and modified variants, and suppresses duplicate Note creation while Notes are loading; added shortcut tooltips to both new-item buttons.
+Output: Shortcut matching and workspace UI wiring regressions pass within all 325 tests; `npm run build` and `git diff --check` pass, with the development server available at `http://localhost:5173/`.
+
+## Step 155: Focus newly created item inputs
+Status: Done
+Did: Replaced new Ask history-item focus with exact-session composer focus and added exact-note rename-input focus after asynchronous creation and loading complete, shared by toolbar and Cmd+N creation paths.
+Output: Ask identity, Note identity, loading, disabled-input, shared-path, and stale-focus regressions pass within all 328 tests; `npm run build` and `git diff --check` pass, with the development server available at `http://localhost:5173/`.
+
+## Step 156: Switch telemetry to Mixpanel
+Status: Done
+Did: Verified EnglishAsk project 4062918 and its US-region token in Mixpanel; replaced the PostHog transport and local environment with Mixpanel Track requests, stable anonymous identity, event IDs, timestamps, and response-body validation.
+Output: Existing app, view, Ask, and Note events now use Mixpanel; local configuration targets the newly created project and retains the disable/debug switches.
+
+## Step 157: Verify Mixpanel delivery
+Status: Superseded
+Did: Verified 339 local tests, production build, and typecheck; added an explicitly opt-in live test using the actual TelemetryClient and restarted the idle app with Mixpanel enabled.
+Output: Local verification passes and project 4062918 is configured. Live delivery remains unverified because api.mixpanel.com DNS resolution fails with ENOTFOUND both inside and outside the sandbox; rerun MIXPANEL_LIVE_VERIFY=1 npm test -- src/main/mixpanel-live.test.ts after connectivity recovers.
+
+## Step 158: Focus new Note Markdown body
+Status: Done
+Did: Replaced automatic filename editing with blank Markdown body focus after the editor initializes and becomes editable, using the created Note ID and cancellable frame scheduling.
+Output: All 12 targeted focus, shortcut, and editor tests and the production build pass; the existing development server is available at `http://localhost:5173/`. Native UI focus has not been manually verified.
+
+## Step 159: Share the existing PostHog project
+Status: Done
+Did: Switched EnglishAsk to the existing FenyiDic PostHog configuration; both main-process transports reserve app metadata and prefix outbound anonymous IDs without changing stored installation IDs.
+Output: Shared project 410831 receives EnglishAsk events; 11 targeted telemetry tests pass and existing business events remain unchanged.
+
+## Step 160: Verify both applications and create dashboards
+Status: Done
+Did: Passed 339 EnglishAsk tests, its opt-in live delivery test, FenyiDic metadata/identity/opt-out/offline checks and live delivery, and both production builds; queried PostHog and confirmed one new startup event per application.
+Output: Created production-only startup dashboards FenyiDic 2088495 and EnglishAsk 2088496 in project 410831. Filters exclude development and unlabelled history; running apps need restart and installed releases need rebuild/republication to load changes.
+
+## Step 161: Inspect dropdown surfaces
+Status: Done
+Did: Inspected all four native selects and existing settings and Note picker styles.
+Output: Use one themed accessible select component for provider, model, answer language and target Note; retain existing change handlers and disabled states.
+
+## Step 162: Implement themed dropdowns
+Status: Done
+Did: Replaced four native selects with a shared dark combobox, portalled listbox, selected checkmarks, keyboard selection and typeahead, outside dismissal, and viewport-aware positioning.
+Output: Existing handlers and disabled options are preserved; added jsdom as a development-only dependency for DOM interaction tests.
+
+## Step 163: Verify dropdown interactions
+Status: Done
+Did: Passed 345 tests including six DOM interaction/positioning cases, production build, and renderer typecheck with Node and Vite test types supplied explicitly; updated the existing language handler regression.
+Output: All four dropdowns use the themed component. Native screenshot verification was blocked by the computer-use session; restarted the development app at http://localhost:5174/ because port 5173 is occupied.
+
+## Step 164: Keep Ask Note actions visible
+Status: Done
+Did: Observed that both Note actions disappear when reading lower answers; moved the whole-Ask toolbar above the conversation scroll region and aligned actions to the right.
+Output: Four targeted Note-action checks and the production build pass; picker height is bounded to preserve conversation space. The inspected native window still showed the prior layout after refresh, so live visual verification remains unconfirmed.
+
+## Step 165: Inspect grammar accuracy safeguards
+Status: Done
+Did: Inspected card generation, parsing, provider cancellation, and the actual ask-object, gone/passive and past-time overgeneralization failures.
+Output: Scope this iteration to generation guidance and one bounded grammar review with field-local corrections; leave examples, pronunciation, module ordering and history unchanged.
+
+## Step 166: Implement grammar review
+Status: Done
+Did: Added shared precision guidance and one bounded grammar-review call with grounded field-local replacements, cancellation and a 45-second deadline; grammar-review failures cannot bypass review via conversational fallback.
+Output: Existing card types, targets, module selection/order and history stay unchanged; no-review cases avoid the extra call and logs contain only result counts/types.
+
+## Step 167: Verify grammar safeguards
+Status: Done
+Did: Passed 369 offline tests including field-local corrections, grounded quotes, invalid outputs, cancellation, deadline, generation integration and no-fallback behavior; production build and diff check pass. Ran three opt-in live regressions using the configured model and synthetic known-bad claims.
+Output: All three live cases removed the seeded bad claim and retained expected grammatical concepts and targets. Review adds one provider call for applicable cards; coverage reduces risk but does not establish universal factual accuracy. Existing saved answers remain unchanged.
+
+## Step 168: Inspect structured example compatibility
+Status: Done
+Did: Traced card parsing, history validation, Markdown formatting and grammar review.
+Output: Add optional paired examples to each section; enforce the new contract only during new generation, retaining legacy Markdown and existing Note export paths.
+
+## Step 169: Implement paired examples
+Status: Done
+Did: Added paired examples to all card sections, new-generation translation validation, canonical Markdown rendering and history validation; extended grammar corrections to individual example fields and blocked unstructured fallback after example validation errors.
+Output: New examples render consistently in Asks and existing Note export flows; legacy Markdown remains unchanged. Example count policy is deferred to the next iteration.
+
+## Step 170: Verify paired example flow
+Status: Done
+Did: Passed 390 offline tests covering paired Markdown rendering, legacy history, Note export, malformed data and validation before/after grammar review; production build and frontend type check pass. Added opt-in live tests and passed both Chinese and English generation using the configured provider after retrying outside network restrictions.
+Output: Structured examples and Chinese translations are enforced for new cards, with malformed pairs rejected rather than silently falling back. Live cases verify the schema, not universal translation accuracy; existing answers and notes remain unchanged, and example count policy is deferred.
+
+## Step 171: Inspect example count policy
+Status: Done
+Did: Checked existing card prompts and structured example generation; counts currently exist only as prompt guidance.
+Output: Preserve defaults (two general examples, three grammar-concept examples, one per comparison target); resolve common explicit quantity requests and validate the examples module without counting translations or supporting examples.
+
+## Step 172: Implement example count validation
+Status: Done
+Did: Added a shared count policy, common Chinese/English explicit quantity parsing, per-target totals, and examples-module validation before and after grammar review. Passed the policy to generation prompts without changing stored cards.
+Output: Exact supported counts override existing type defaults; ambiguous/ranged quantities are left to the model instead of forced to a default. Count errors reuse the existing no-fallback validation path; auxiliary examples and translations are not counted.
+
+## Step 173: Verify example count enforcement
+Status: Done
+Did: Passed 427 offline tests, production build and frontend typecheck; covered type defaults, Chinese/English explicit quantities, per-target totals, range deferral, invalid bounds, supporting-example exclusion, missing modules and generation rejection. Live Chinese requested-three generation passed. Diagnosed empty optional translation fields in English and clarified omission in the prompt.
+Output: Subsequent live English drafts returned exactly two examples with translation omitted, but full English runs failed at the existing grammar-review stage twice; complete English live verification remains unsuccessful. No review safeguards were relaxed. Existing answers and notes are unchanged; flexible quantities remain model-controlled rather than exact-count validated.
+
+## Step 174: Inspect grammar review diagnostics
+Status: Done
+Did: Checked review deadlines, provider failures, correction validation and error propagation; the catch currently discards specific causes.
+Output: Add safe typed error codes, stage and elapsed time while preserving cancellation and fail-closed behavior; do not log raw provider responses or learning content.
+
+## Step 175: Implement review error details
+Status: Done
+Did: Added typed safe failure codes and English messages for deadlines, HTTP/network failures, malformed JSON/schema and invalid corrections; logged stage and monotonic elapsed time, with bounded inspection of nested provider errors.
+Output: Existing IPC error messages now expose actionable categories. Cancellation, the 45-second deadline and fail-closed behavior are unchanged; raw errors, provider bodies, prompts and credentials are not logged by review diagnostics.
+
+## Step 176: Verify review diagnostics
+Status: Done
+Did: Passed 442 offline tests, production build and frontend typecheck, including deadline classification, HTTP status codes, nested network causes, circular errors, malformed outputs, correction failures and log privacy.
+Output: Diagnostics are verified with deterministic failures; no new live provider run was performed, and the historical review failures cannot be retroactively classified from their old logs.
+
+## Step 177: Diagnose live review failure
+Status: Done
+Did: Reproduced English review failure with code timeout, stage request, elapsedMs 45006. Verified DeepSeek documentation defaults thinking effort to high and the installed OpenAI adapter forwards reasoningEffort.
+Output: Trial low reasoning effort only for DeepSeek V4 grammar review, retaining thinking, the 45-second deadline and existing generation settings; validate both latency and seeded grammar regressions.
+
+## Step 178: Scope review reasoning configuration
+Status: Done
+Did: Added an internal grammar-review purpose and mapped only direct DeepSeek V4 Flash/Pro review calls to low reasoning effort. Added tests for selected/unselected providers, models and main-generation calls.
+Output: 448 offline tests pass; main answer generation, other providers/models, review validation and the deadline remain unchanged.
+
+## Step 179: Verify live review completion
+Status: Done
+Did: Passed 449 offline tests, production build and frontend typecheck. The first low-effort live run passed both language pipelines but exposed an unknown-field grammar correction; added an explicit editable-field allowlist shared with validation. The final run passed English generation and all three seeded grammar regressions, while Chinese generation timed out during review at 45007ms.
+Output: English full-flow verification now passed twice, and the field-name regression passed after the allowlist change. Remote review latency remains variable: the latest live suite is 4/5, not fully green. Kept the 45-second deadline and fail-closed safeguards; no timeout extension, automatic retry or main-generation configuration change was made.
+
+## Step 180: Inspect pronunciation target selection
+Status: Done
+Did: Retrieved item four of the original improvement list and traced target selection, both speech backends and playback state; the current function reads the display title directly.
+Output: Select clean English card targets independently, split comparisons into separate controls, and use structured real examples for patterns. Preserve translation exclusion; hide controls when no valid target exists and leave legacy data untouched.
+
+## Step 181: Implement independent pronunciation targets
+Status: Done
+Did: Replaced display-title playback with validated English card targets, separate comparison controls and structured real-example selection for patterns; keyed playback by message and target and revalidated selected text before either speech backend.
+Output: Chinese/mixed targets, placeholders and combined comparison labels are not spoken. Missing suitable targets hide controls; translation exclusion, audio backend behavior, Markdown and saved records remain unchanged.
+
+## Step 182: Verify pronunciation selection and playback wiring
+Status: Done
+Did: Passed 463 tests, production build and frontend typecheck. Covered independent title/targets, Chinese and unsafe targets, placeholders, comparison splitting, structured/legacy patterns and translation exclusions; rendered the actual App in jsdom to test target switching, stopping and stale completion callbacks.
+Output: Selection and component behavior are automatically verified with mocked speech. No live audio listening or desktop screenshot verification was performed, and no DeepSeek calls or timeout changes were made in this iteration.
+
+## Step 183: Inspect module selection and ordering
+Status: Done
+Did: Confirmed the postprocessor sorts by Router array order despite type-specific prompt order; default lists are also repeated across prompts.
+Output: Centralize type defaults and ordering, keep Router responsible for selection, normalize duplicate/unrequested output as before, and reject missing selected modules for new generation only. Preserve stored answers and notes.
+
+## Step 184: Implement shared module policy
+Status: Done
+Did: Added one shared policy for all eight types; Router defaults, generator instructions, postprocessing order and default example-module checks now derive from it. Added missing-module validation before/after review and blocked unstructured fallback for that failure.
+Output: Router order no longer controls presentation. Duplicate/unrequested sections are normalized, rare explicitly selected modules have deterministic trailing order, and incomplete new answers fail clearly without modifying saved history.
+
+## Step 185: Verify module policy
+Status: Done
+Did: Passed 479 tests, production build and frontend typecheck. Covered all eight types, reversed Router/model order, defaults, duplicate/unrequested sections, supplemental modules, missing selections, fail-closed behavior and heavy-rain Markdown heading order.
+Output: Shared prompt/runtime policies agree and persisted history remains unchanged. Verification used synthetic responses and executable checks, not live model requests; DeepSeek settings and timeout behavior were untouched.
+
+## Step 186: Inspect concise and language-consistent generation
+Status: Done
+Did: Checked shared/type prompts and language suffixes; current concision guidance is broad, and the structured Chinese suffix conflicts with separate example/translation fields.
+Output: Strengthen generation-only guidance for sense focus, module responsibilities and language consistency, reconcile structured translation instructions, and add contract regressions without a new review call.
+
+## Step 187: Strengthen generation guidance
+Status: Done
+Did: Added shared generation-only focus/language rules for all card prompts, including contextual sense limits, module responsibilities, necessary exceptions and preservation of explicit detail. Reconciled Chinese structured instructions with separate example/translation fields while retaining Markdown-only behavior.
+Output: No new runtime content-review stage, retry, model setting or history rewrite was introduced; existing grammar review remains unchanged.
+
+## Step 188: Verify generation prompt contracts
+Status: Done
+Did: Passed 502 tests, production build and frontend typecheck. Added seven known-issue prompt regressions plus all-eight-type Chinese/English request-composition tests asserting unchanged generation/review call counts, source focus and target preservation.
+Output: Prompt coverage and integration are verified without live provider calls. These contract tests do not prove model compliance or semantic quality; no new content-review call or automatic rewriting of saved answers was added.
+
+## Step 189: Inspect final answer acceptance
+Status: Done
+Did: Traced generation, review and fallback paths; typed example/module failures are blocked but JSON, type, target and IPA failures can still trigger an unstructured answer after successful card routing.
+Output: Unify the existing pre/post-review acceptance checks and fail closed for every successfully routed card failure; retain conversational, clarification and existing Router-failure behavior without additional model calls.
+
+## Step 190: Unify acceptance and close card fallback
+Status: Done
+Did: Unified parsing and example/module validation into the same acceptance function before and after existing grammar review, using requirements resolved before generation. Removed conversational fallback after successful card routing and checked cancellation at acceptance boundaries.
+Output: Invalid routed cards and provider failures now propagate instead of triggering a second unstructured answer. Conversational/clarification routes and Router-failure behavior remain unchanged; no extra review, retry or model call was added.
+
+## Step 191: Verify acceptance boundaries
+Status: Done
+Did: Passed 522 tests, production build and frontend typecheck. Added pre/post-review regressions for type, targets, missing modules, IPA, example counts and translations; covered malformed JSON, canonical order, late cancellation and no fallback for generic card/provider failures.
+Output: Deterministic acceptance paths are verified with synthetic responses; existing pronunciation selection and prompt contract regressions remain green. No live provider requests were made and semantic quality or remote latency was not newly verified.
+
+## Step 192: Inspect target pollution and redundant modules
+Status: Done
+Did: Traced the persisted went response to Router guidance that does not distinguish learning targets from requested analytical dimensions; broad module selection is then mandatory for generation.
+Output: Tighten Router target/coverage guidance and generation ownership without keyword deletion or extra model calls; order selected examples after explanatory modules. Preserve valid grammar-concept comparisons and saved answers.
+
+## Step 193: Implement focused routing and section ownership
+Status: Done
+Did: Added Router target-vs-dimension examples and minimal coverage rules, explicit section ownership in generation, and deterministic examples-last ordering while preserving all selected modules and legitimate concept targets.
+Output: Added offline policy/parser/order regressions and opt-in live routing/full-generation cases; no keyword-based target deletion, extra production model call, language change or history rewrite.
+
+## Step 194: Verify focused routing and module ordering
+Status: Done
+Did: Passed 535 offline tests, production build, and frontend typecheck with explicit node/vite types. Two live DeepSeek cases passed: went retained exactly three lexical targets and generated comparison/usage/examples with two paired examples; active/passive concepts remained a valid comparison.
+Output: The live went flow completed in about 46 seconds with review; six historical modules reduced to three, but comparison/usage prose still overlaps somewhat. No claim of complete semantic deduplication. Existing records were not rewritten, and these live test outputs were not added to App history. The plain frontend typecheck still needs Node types for existing test imports.
+
+## Step 195: Inspect remaining comparison duplication
+Status: Done
+Did: Confirmed the previous Router example still mandates usage for went even when comparison already covers forms and selection conditions; the comparison generator also requests a second decision rule.
+Output: Use comparison/examples for same-lemma form questions without independent usage needs, preserve explicitly requested sections and general comparison defaults, and verify both narrow and expanded requests.
+
+## Step 196: Implement conditional comparison usage
+Status: Done
+Did: Made usage conditional for same-lemma comparisons, reconciled comparison generation guidance, and expanded regressions to an unseen lemma and explicit usage-section requests.
+Output: General comparison defaults, selected-module validation, model call counts and persisted content are unchanged; same-lemma selection remains model-driven rather than keyword deletion.
+
+## Step 197: Verify conditional comparison usage
+Status: Done
+Did: Passed 538 offline tests, production build and frontend typecheck with explicit node/vite types. Four live cases passed, followed by a separate write/wrote/written routing check replacing the in-prompt see/saw/seen example.
+Output: Live went output has comparison/examples only, retains passive-use explanation and two translated examples, and completed with review in about 53 seconds. Explicit usage sections and legitimate grammar comparisons remain supported. Some within-section restatement remains; no universal semantic deduplication claim, no App history write and no saved-answer rewrite.
+
+## Step 198: Inspect per-question answer language
+Status: Done
+Did: Confirmed generation always uses saved language and renderer persists that default for headings, regardless of explicit question instructions.
+Output: Recognize bounded explicit language directives outside quotations, resolve only the current question, and return override metadata for rendering/history without mutating settings or adding model calls.
+
+## Step 199: Implement request language precedence
+Status: Done
+Did: Added conservative standalone Chinese/English directive resolution outside quoted/code material, applied it to card and conversational generation, and propagated changed language to renderer message metadata.
+Output: Last recognized current-question directive wins; absent/unsupported/scoped directives use settings. No settings mutation, history-driven preference change or additional provider call.
+
+## Step 200: Verify request language precedence
+Status: Done
+Did: Passed 564 offline tests, production build and frontend typecheck with explicit node/vite types. Covered bidirectional overrides, last-directive precedence, quotations/code, example-only requests, unsupported languages, unchanged defaults and card/conversational integration.
+Output: Current-question standalone directives now reach generation and return override metadata for existing message persistence. No live provider call or App UI test was performed in this iteration; arbitrary paraphrases and clarification-question localization are not covered by this conservative resolver.
+
+## Step 201: Inspect failed Ask retry
+Status: Done
+Did: Traced per-session request state, failed user-message persistence and composer submission; resending currently always appends a new user message.
+Output: Bind failed requests to their question message, retry only a matching latest unanswered question, preserve drafts, and retain per-session pending/stale-response safeguards.
+
+## Step 202: Implement original-message retry
+Status: Done
+Did: Added question-message identity to per-session requests and a scoped Retry control that reuses the original message/context with a fresh request ID while preserving composer drafts.
+Output: Only settled failures matching the latest user message are eligible; pending/stopped/successful requests are excluded and stale-response protections remain unchanged.
+
+## Step 203: Verify retry behavior
+Status: Done
+Did: Added a jsdom test mounting App through two failures and a successful retry, verifying fresh request IDs, unchanged question/context, one stored user message, preserved draft and response-language persistence; added retry eligibility boundaries and updated the cancellation source contract.
+Output: 566 tests, production build and frontend typecheck passed. Existing per-session concurrency and cancellation tests remain green. No live provider request or desktop visual check was performed; retry availability follows in-memory failure state and is not restored after app reload.
+
+## Step 204: Inspect review timeout recovery
+Status: Done
+Did: Confirmed manual Retry reruns classification, answer generation and review, discarding a structurally valid draft on transient review failures.
+Output: Add explicit retry linkage and bounded expiring in-memory draft reuse with exact request/configuration matching. Keep Router, review deadline, user-triggered retries and fail-closed validation unchanged.
+
+## Step 205: Implement bounded review draft reuse
+Status: Done
+Did: Linked manual retries to prior request IDs, retained structurally validated drafts only after transient review failures, and consumed matching drafts once using a SHA-256 fingerprint of request/configuration and prompts.
+Output: Cache is memory-only, limited to eight entries and 256000 characters per draft with five-minute expiry. Router still runs; changed requirements regenerate, and every reused draft and reviewed result passes acceptance again. No automatic retry or deadline change.
+
+## Step 206: Verify timeout recovery boundaries
+Status: Done
+Did: Passed 584 tests, production build and frontend typecheck. Covered retry linkage, cache expiry/eviction/size limits/single consumption, transient failure chains, changed language/model/provider/key/question/context/modules, cancellation and rejected resumed corrections.
+Output: Mocked recovery confirms matching retries skip answer regeneration without skipping review/acceptance. Remote timeout frequency and real latency were not retested; Router remains a live step and changed classification requirements intentionally prevent draft reuse.
+
+## Step 207: Run eight-type App regression
+Status: Done
+Did: Submitted and inspected eight independent real Asks for word, phrase, collocation, pattern, sentence, paragraph, grammar_concept and comparison. All returned matching classifications; alternating Chinese/English instructions and requested example counts worked, and all answers/headings survived a renderer reload. Submitted one additional cancellation case and observed pending clear without affecting the eight answers.
+Output: Test conversations remain in Asks. No timeout occurred in these eight flows, so live Retry/cache recovery was not exercised. Residual findings include repeated explanations and an overgeneralized present-perfect selection rule; native accessibility text truncates long text nodes, so this is not exhaustive semantic or visual acceptance. No production code changed in this test run.
+
+## Step 208: Inspect review risk selection
+Status: Done
+Did: Confirmed usage/comparison/common_mistakes membership and broad words such as must/always in examples trigger review, while analyze_sentence is not explicitly gated.
+Output: Keep explicit grammar/correction/syntax intents, grammar types/modules and technical assertions; skip ordinary usage/lexical comparison/translation and ignore example text for heuristic triggering.
+
+## Step 209: Implement selective grammar review
+Status: Done
+Did: Removed usage/comparison/common_mistakes as automatic gates, retained grammar types/modules/intents including syntax analysis, and replaced broad keywords/example scanning with technical-topic and grammatical-constraint checks in explanations.
+Output: Added privacy-safe skipped-review logging and policy/call-count regressions. Deadlines, generation validation, review corrections, retry cache and existing answers are unchanged.
+
+## Step 210: Verify selective review coverage
+Status: Done
+Did: Passed 609 tests, production build and frontend typecheck. Verified zero review provider calls for ordinary lexical usage/comparison and translation; retained explicit grammar/correction/syntax, grammar modules/types, tense/voice comparisons and bilingual high-risk assertion cases.
+Output: Broad usage/comparison/example-word gates are removed while required acceptance checks remain. Selection is a conservative heuristic, not a guarantee of detecting every grammar claim; real latency savings and live model quality were not measured in this iteration.
+
+## Step 211: Inspect retry persistence
+Status: Done
+Did: Confirmed history persists messages but request state always initializes empty; failed and in-flight attempts lose recovery metadata on reload.
+Output: Store bounded request metadata atomically with each conversation, restore only a matching latest unanswered question, and convert interrupted pending attempts to manual retry without persisting drafts or automatically submitting.
+
+## Step 212: Persist retry metadata with history
+Status: Done
+Did: Added bounded validated per-conversation retry metadata to the existing history snapshot and restored failures/interrupted pending requests into per-Ask state.
+Output: Success/stopped/new-question snapshots remove stale metadata; invalid metadata is dropped without deleting valid history. Restoration never submits automatically, and review drafts remain memory-only.
+
+## Step 213: Verify reload recovery
+Status: Done
+Did: Passed 620 tests, production build and frontend typecheck. Component remount tests cover persisted failure, manual retry, original message identity, successful cleanup and interrupted pending recovery; unit tests cover session isolation, invalid/oversized metadata, legacy history and stale-state removal.
+Output: New failures/interrupted attempts survive history reload without auto-submission or duplicate questions. Older failures without stored metadata cannot be reconstructed; no real-provider failure or desktop restart test was performed, and draft cache persistence remains intentionally unchanged.
+
+## Step 214: Inspect natural language preference coverage
+Status: Done
+Did: Found anchored standalone patterns cannot recognize topic-bearing instructions, preference phrases or short language requests; quote removal also splits legitimate topic-bearing requests.
+Output: Expand local positive-directive patterns with quote masking and scoped exclusions, preserve explicit current-question precedence and defaults for ambiguous/unsupported requests, without extra model calls.
+
+## Step 215: Expand language directive recognition
+Status: Done
+Did: Added topic-bearing English/Chinese requests, use-language-to-explain forms, short preferences and answer-language phrases; masked quotes without splitting the surrounding request and distinguished content negation from negated language instructions.
+Output: Scoped examples/translation, reported speech and unsupported modes keep defaults. Updated bidirectional service integration cases without changing metadata persistence, settings or provider call count.
+
+## Step 216: Verify natural language boundaries
+Status: Done
+Did: Passed 668 tests, production build and frontend typecheck, including 48 added natural-directive/boundary cases and bidirectional service propagation for topic-bearing requests.
+Output: Supports the tested English/Chinese preference families without extra API latency. Quoted/scoped/reported/negative cases retain defaults as tested; arbitrary conditional or mixed-language instructions and clarification localization remain outside this local heuristic. No live provider/UI test was performed.
+
+## Step 217: Inspect Router-dependent draft reuse
+Status: Done
+Did: Confirmed retries classify again before checking a draft fingerprint that includes targets, focus and modules.
+Output: Preserve the accepted route alongside resumable drafts and look it up before Router using original question, history and configuration; keep existing draft validation and invalidation protections.
+
+## Step 218: Stabilize retry routing
+Status: Done
+Did: Bound original classification to the draft's existing lifetime and added a pre-Router lookup keyed by question, role/content history, language, provider, model, API key hash input and system prompt.
+Output: Matching explicit retries reuse the accepted route; changed inputs invalidate the draft. Original validation, transient-failure eligibility, size/TTL limits and single-consumption semantics remain in place.
+
+## Step 219: Verify retry routing boundaries
+Status: Done
+Did: Passed 679 tests (10 optional skipped), production build and frontend typecheck. Added route bypass/diagnostic checks, request/configuration boundary cases, immutable metadata lifetime checks and chained transient retry coverage.
+Output: Valid draft retries avoid a fresh Router call and retain original acceptance requirements. Expired, consumed or input-mismatched drafts use fresh routing/generation; no live provider test was performed and cache remains memory-only.
+
+## Step 220: Inspect remaining content-quality guidance
+Status: Done
+Did: Compared the recorded eight-type regression findings with shared generation/review rules and grammar-concept module instructions. Generic deduplication exists, but summary/definition boundaries and missing-time tense inference are not explicit.
+Output: Strengthen generation-time ownership and shared grammar accuracy guidance without extra model calls, destructive post-processing or changes to existing answers.
+
+## Step 221: Refine content ownership and tense-rule scope
+Status: Done
+Did: Added distinct summary/meaning/grammar/usage responsibilities, semantic-overlap checks with detail-preservation boundaries, and shared generation/review rules against time-expression and present-relevance shortcuts.
+Output: All card types inherit scoped grammar guidance; grammar-concept cards receive specific present-perfect ownership instructions. Existing review selection and provider call counts are unchanged.
+
+## Step 222: Verify content-quality prompt propagation
+Status: Done
+Did: Passed 685 tests (10 optional skipped), production build and frontend typecheck. Added ownership/scope assertions, eight-type bilingual prompt propagation checks and four field-local correction fixtures for tense overgeneralizations.
+Output: Automatic checks verify prompt delivery, unchanged call counts and safe correction application, not model semantic compliance. No live provider retest was performed; repeated prose and misleading rules require real-answer regression before claiming resolved.
+
+## Step 223: Prepare live content-quality regression
+Status: Done
+Did: Inspected existing opt-in live tests and selected Chinese/English present-perfect explanations to exercise module ownership and tense-choice boundaries through real generation and review.
+Output: Add bounded opt-in tests using current saved provider settings, without logging credentials or changing app conversations.
+
+## Step 224: Run and inspect live content-quality answers
+Status: Done
+Did: Ran two bilingual live rounds with saved deepseek-v4-flash settings; all four generations passed structure/example/exact-paragraph checks. Inspected saved second-round JSON answers: both reject missing-time inference, but Chinese meaning/usage repeat the readings and grammar includes usage guidance; English summary repeats formation.
+Output: Tense boundary guidance appears in these samples, while semantic repetition persists despite exact-duplicate checks. Refine ownership using these observed outputs; synthetic answers are in /tmp/englishask-content-quality-20260915-{zh,en}.json, not app history.
+
+## Step 225: Tighten observed grammar-concept overlap
+Status: Done
+Did: Assigned reading inventories and time-frame choices to usage when selected, confined grammar to form/word order, and excluded redundant summary formulas with explicit-request exceptions.
+Output: Added prompt boundary assertions preserving coverage when usage is absent. No module removal, answer post-processing or new model stage was introduced.
+
+## Step 226: Recheck refined content ownership
+Status: Done
+Did: Passed 685 offline tests, production build and frontend typecheck, then both refined live cases with deepseek-v4-flash. Inspected /tmp/englishask-content-quality-refined-20260915-{zh,en}.json: definitions are separated from reading inventories, summary formulas are absent and missing-time inference is explicitly rejected.
+Output: Sample-level ownership improved without new calls; semantic quality is not fully resolved. Remaining findings include repeated caveats within usage, Chinese bare when... listed as a finished-time cue, and English participle/past-simple wording that should distinguish grammatical role from identical regular-verb forms. Synthetic test outputs were not inserted into app history.
+
+## Step 227: Inspect remaining tense and morphology generalizations
+Status: Done
+Did: Read current shared generation/review guidance and prior live findings. Neither bare when nor identical past/participle forms has an explicit boundary rule.
+Output: Add two scoped rules and bilingual bad-rule/correct-rule regressions, without expanding review selection or changing answer structure.
+
+## Step 228: Add tense-cue and morphology boundaries
+Status: Done
+Did: Added whole-clause when interpretation and grammatical-role/surface-form distinctions to shared generator/reviewer rules, with regular/irregular examples and correctly scoped exceptions.
+Output: Added bilingual correction fixtures, no-change controls, prompt assertions and six opt-in real-review cases with optional synthetic-output files; no new production API stage.
+
+## Step 229: Verify scoped grammar corrections
+Status: Done
+Did: Passed 692 offline tests, build/typecheck and six live review cases with deepseek-v4-flash. Inspected saved synthetic outputs: four false rules corrected and two correct controls unchanged.
+Output: Real reviewer corrections sometimes expanded into unrelated tense lessons and inline sentence examples. Tighten reviewer edit scope before concluding this iteration; saved initial outputs are /tmp/englishask-grammar-boundaries-20260915-*.json.
+
+## Step 230: Limit review-time explanatory expansion
+Status: Done
+Did: Restricted full-field replacements to substantive local repairs, preserving correct text and existing example placement while prohibiting unrelated checklist lessons or newly invented example fields.
+Output: Added prompt contract checks; correction schema, validation, review gate, timeout and provider call count remain unchanged.
+
+## Step 231: Verify focused review replacements
+Status: Done
+Did: Passed 693 offline tests, production build and frontend typecheck. Re-ran six live cases after limiting expansion: Chinese when correction passed and stayed local; the other five failed at the existing 45-second request deadline with no returned corrections to inspect.
+Output: Initial boundary-rule round passed 6/6, but the final scope refinement has only one successful live sample and is not fully live-accepted. No provider, deadline or retry behavior changed. Final sample is /tmp/englishask-grammar-boundaries-focused-20260915-when-zh.json; timeout cause remains unconfirmed and the five cases need a later rerun.
+
+## Step 232: Retry outstanding live boundary cases
+Status: Done
+Did: Selected the five previously timed-out cases with the current saved provider settings. when-en and participle-zh again timed out at the 45-second request deadline; interrupted the test process after the repeated failures, leaving the other three without completed results.
+Output: No new successful correction samples or production changes. Live acceptance remains incomplete; stop repeated full-suite attempts until request-stage latency is investigated. Existing 693-test/build/typecheck verification applies to unchanged production code.
+
+## Step 233: Diagnose request-stage timeouts and retry actual reviews
+Status: Done
+Did: Verified saved deepseek-v4-flash configuration and actual SDK reasoning_effort=low payload. Minimal SDK JSON calls received HTTP 200 headers in 166/218 ms but zero body bytes before 45-second abort, including a diagnostic thinking-disabled request; one baseline attempt ruled out hidden retries. Later raw streaming/non-streaming controls completed in 1118/1442 ms, then all five previously failed app-path review tests passed in 30.61 seconds total with unchanged production settings.
+Output: Observed intermittent waiting after HTTP headers, not a reproducible SDK incompatibility or a failure limited to long review prompts. Upstream scheduling/inference or intermediary response delivery remains unconfirmed; DeepSeek documents possible keep-alive waiting. No production code/model/deadline changes. Saved /tmp/englishask-grammar-boundaries-diagnosed-20260915-*.json shows corrected false rules and unchanged valid controls; Chinese participle correction still has some extra tense explanation, so concision is not guaranteed.
+
+## Step 234: Scope Chinese-only answers
+Status: Done
+Did: User deferred English answers, superseding the planned configurable clarification-language work. Inspected settings, request resolution, Router clarifications and renderer; the Asks settings page contains only language selection.
+Output: Remove that settings entry, use Chinese for new explanations/clarifications regardless of legacy settings or English-only requests, and preserve English learning material plus historical language metadata.
+
+## Step 235: Disable English answer selection
+Status: Done
+Did: Removed language settings and its now-empty Asks settings page; normalized legacy settings to Chinese and fixed new Ask generation/response metadata to Chinese without language overrides. Requested Chinese Router clarifications while retaining quoted English targets.
+Output: Existing message language values remain readable, and English examples/translations/corrections are preserved. Main Asks navigation and all unrelated settings remain unchanged.
+
+## Step 236: Verify Chinese-only request and settings behavior
+Status: Done
+Did: Passed 701 tests (18 optional skipped), production build and frontend typecheck. Verified legacy English/bilingual setting normalization, fixed Chinese card/conversation metadata despite English requests, Router clarification instructions and rendered settings/navigation removal.
+Output: New explanations use Chinese policy without extra API calls; historical English metadata and English learning material remain intact. No live model or native-window visual test was performed; tests verify prompt propagation rather than universal model compliance.
+
+## Step 237: Scope Chinese interface with retained domain terms
+Status: Done
+Did: Inspected navigation, settings, dialogs, status text, editor labels and diagnostics; user requests Chinese UI while retaining Ask/Asks/Note/Notes.
+Output: Translate interface copy only, preserving learning content, stored identifiers, brand/model names and original technical details.
+
+## Step 238: Implement Chinese interface copy
+Status: Done
+Did: Translated navigation/settings/actions/dialogs/status/accessibility text and generated default names, retained Ask/Asks/Note/Notes and brand/model identifiers, and localized diagnostic enum labels and native menu/folder chooser labels.
+Output: Added Chinese error summaries with expandable original technical details, Chinese font fallbacks/document language, and localized prompt-description labels without changing model prompts or user content.
+
+## Step 239: Verify localized workflows
+Status: Done
+Did: Passed 712 tests (18 optional skipped), production build and frontend typecheck. Verified the live Asks screenshot/accessibility labels and Chinese native menu labels; localized settings/Notes behavior is covered by automated tests.
+Output: Ask/Asks/Note/Notes and existing learning content remain unchanged. Settings and Notes screenshot inspection could not finish because the native UI connection returned noWindowsAvailable; no settings or learning data were changed during verification.
+
+## Step 240: Verify Chinese answers through the live app
+Status: Done
+Did: Used user-authorized Playwright to submit 9 real Asks covering all 8 learning content types and create 9 Notes through UI actions; checked Chinese metadata/headings, canonical module order, example counts/translations and exact Note-to-rendered-Markdown equality.
+Output: All 9 workflows completed with deepseek-v4-flash; conversations and Notes remain in the app. chinese-answer-regression.md records unresolved semantic overgeneralization, incomplete paragraph detail, repetition, literal inline Markdown in Note tables and 15.2–57.9 second response times. No production behavior changed; this is not full semantic acceptance or all-intent coverage.
+
+## Step 241: Scope grammar and paragraph coverage repairs
+Status: Done
+Did: Inspected shared grammar guidance, sentence/paragraph generation instructions and field-level review. The perfect-have rule lacks an explicit lexical-have boundary; paragraph guidance does not require both endpoints of a requested relationship.
+Output: Tighten generation/review scope and paragraph coverage without new API stages, more aggressive review selection, module changes or rewriting historical answers. Defer table rendering and latency changes.
+
+## Step 242: Add scoped rules and regression cases
+Status: Done
+Did: Scoped perfect auxiliary have/has explicitly, required relevant paragraph clause endpoints and prohibited unsolicited parallel examples; review guidance now preserves existing multi-clause coverage during local corrections.
+Output: Added six offline contract/preservation cases and five opt-in real-model cases covering false-rule repair, valid-rule preservation, paragraph review and both generation paths. No new production API stage or review gate change.
+
+## Step 243: Verify repairs offline and with real model samples
+Status: Done
+Did: Passed 718 offline tests (23 opt-in skipped), production build and frontend typecheck. Initial live checks exposed an unnecessary correct-rule rewrite, so reviewer scope was tightened; fixed a lexical false-positive that rejected an explicitly negated quotation of the bad rule. Final five real-model checks passed in 63.38 seconds.
+Output: Inspected /tmp/englishask-coverage-verified-*.json: faulty auxiliary rule repaired, correct scoped rule unchanged, paragraph endpoints preserved in review/generation, no unsolicited paragraph examples, and three paired grammar examples retained. Historical App records unchanged; model semantics remain sample-verified rather than universally guaranteed. Repetition, table inline formatting and latency remain deferred.
+
+## Step 244: Scope repetition and table preview repairs
+Status: Done
+Did: Confirmed Note table cells use textContent while Asks render inline Markdown; inspected shared ownership guidance and observed take-off/say-tell repetition.
+Output: Render supported inline syntax with the existing Lezer parser and safe DOM nodes, preserving click-to-edit/source text. Refine module ownership without runtime answer deletion or additional model calls.
+
+## Step 245: Implement scoped presentation and content fixes
+Status: Done
+Did: Added safe Lezer-backed table inline rendering for emphasis/code/strike/links, retaining raw HTML as inert text and preventing preview-link navigation during editing. Clarified word-order and comparison module ownership without removing requested facts.
+Output: Added DOM regression coverage for nested formatting, unsafe input, table alignment and click-to-edit preservation; added prompt boundary assertions. No new dependencies, model stages or runtime answer trimming.
+
+## Step 246: Verify preview safety/editing and live content ownership
+Status: Done
+Did: Passed 724 offline tests (25 opt-in skipped) and reran the corrected ownership live suite: 2/2 passed in 89.02 seconds. Used Playwright on the existing say/tell Note to verify rendered bold, click-to-source, blur-to-preview and unchanged saved Markdown; inspected its screenshot.
+Output: Table preview repair is accepted for the tested workflow. Live samples reduce repeated placement/formula guidance in usage and retain scoped pronoun constraints; summary/body overlap remains, so semantic repetition is not universally resolved. Temporary debug port closed and normal app restored. Latency optimization and broader intent regression remain outstanding.
+
+## Step 247: Scope stage latency measurement
+Status: Done
+Did: Inspected the serial Router/generation/review path and provider adapters. Only review has stage-level timing; DeepSeek low reasoning is currently limited to review, and other stage durations are not independently visible.
+Output: Add privacy-safe per-call timing and stage labels, obtain real baseline samples, then evaluate a narrowly scoped optimization without dropping acceptance checks.
+
+## Step 248: Measure stage latency and evaluate optimization
+Status: Done
+Did: Added payload-free timing for Router, card generation, review, answer and Note requests. Two live baseline cases completed in 18.132s and 23.536s: generation took 13.973s/14.175s, routing 4.144s/2.094s, and grammar review 7.263s in the grammar case.
+Output: Generation dominates these samples; no application-level repeat call or failed stage was observed (SDK-internal retry attempts are not separately traced). Scope adjustment: retain existing model parameters and acceptance checks because two samples do not establish a quality-preserving speed optimization. Actual latency reduction remains outstanding, not claimed complete.
+
+## Step 249: Verify latency changes and quality boundaries
+Status: Done
+Did: Passed 728 offline tests (27 opt-in skipped), production build and frontend typecheck. Two live samples passed type/module/example-count checks; inspected Chinese explanations and paired examples. Timing tests cover success, failure, cancellation, concurrent call IDs and payload exclusion.
+Output: Per-stage measurement is verified without changing generation parameters or review selection. Live results are stored in /tmp/englishask-latency-before-*.json, not App history. This is measurement acceptance, not proof of lower latency or comprehensive semantic correctness.
+
+## Step 250: Scope remaining intent regression
+Status: Done
+Did: Inspected Router intent definitions, sentence generation contracts and translation pronunciation suppression. Prior real-app coverage did not exercise translation, correction, polishing, pronunciation or missing-target clarification.
+Output: Add opt-in end-to-end Router/generation samples for those five paths with semantic spot checks. Preserve existing settings and user history; no production behavior changes unless a failure establishes a scoped defect.
+
+## Step 251: Add and run intent regression
+Status: Done
+Did: Added five opt-in Router-to-answer tests and ran them with the configured model. Inspected saved samples beyond lexical checks; polishing an already correct sentence invented erroneous alternatives in common_mistakes.
+Output: Translation, correction, pronunciation targeting and clarification paths have samples. Before acceptance, tighten sentence common_mistakes grounding and retest polishing; pronunciation notation consistency remains a separate semantic concern.
+
+## Step 252: Verify results and record remaining boundaries
+Status: Done
+Did: Grounded sentence common_mistakes in actual source errors, with explicit no-error handling and user-requested hypothetical examples only. Added a prompt contract test; five live paths passed again, then a sixth fixed-module polishing sample passed to exclude Router variation as a false fix.
+Output: 729 offline tests passed (33 opt-in skipped), production build and frontend typecheck passed. Saved samples remain outside App history. Pronunciation notation/prose consistency, broader semantic quality, concurrency/retry/long-session regression and actual latency reduction remain outstanding.
+
+## Step 253: Add guarded Note update storage and recovery
+Status: Done
+Did: Added persistent previous-update snapshots, guarded writes/restores, directory checks, and serialized Note writes with an external-edit check before replacement.
+Output: All 20 targeted storage tests pass, including recovery, stale previews, competing writes, later edits, and backup failure.
+
+## Step 254: Add Note update preview and undo controls
+Status: Done
+Did: Added an accessible before/after modal, explicit confirmation, unchanged-content handling, in-dialog errors, and a persisted undo action in the Note header; blocked duplicate saves and shortcuts behind the modal.
+Output: Six real App DOM interaction tests pass for preview, cancel, confirm, undo, conflicts, unchanged content, and pending-save behavior.
+
+## Step 255: Verify Note preview and recovery
+Status: In Progress
+Did: Running the full regression suite, explicit frontend typecheck, build, and preview layout inspection.
+Output: Pending final verification.
+
+## Jev Gateway trial — Step 1: Confirm endpoint and credentials
+Status: Done
+Did: Verified Vercel's evaluation HTTP documentation and checked credential presence without printing secrets; no AI_GATEWAY_API_KEY is configured.
+Output: Use typesafe-ai/jev at https://ai-gateway.vercel.sh/v1/evaluate. This independent trial leaves unrelated unfinished Step 255 intact.
+
+## Jev Gateway trial — Step 2: Prepare a standalone smoke test
+Status: Done
+Did: Added a Node-only Gateway trial with a fixed synthetic example, timeout, response validation and secret-safe errors; documented the environment key.
+Output: scripts/jev-gateway.mjs and scripts/jev-gateway.test.mjs; no dependency or application routing changes.
+
+## Jev Gateway trial — Step 3: Verify locally and make a real request
+Status: In Progress
+Did: All 13 offline checks passed. Located the setup-managed .zshrc references and read the existing macOS Keychain Gateway credential without exposing or persisting it; real evaluation requests returned HTTP 403.
+Output: Sanitized Gateway error explicitly requires a valid credit card on file to service requests and unlock free credits. Live success remains blocked by account billing requirements, not a missing key; no successful Jev inference claimed.
+
+## Review latency optimization: Scope
+Status: Done
+Did: Reviewed the direct DeepSeek adapter and paired review experiments. The SDK supports reasoningEffort=none, which the documented DeepSeek chat API maps to disabled thinking.
+Output: Apply only to existing supported direct DeepSeek V4 review requests. Preserve routing, generation, other providers/models, review validation, retries and the 45s deadline.
+
+## Review latency optimization: Implement
+Status: Done
+Did: Changed supported direct DeepSeek V4 review calls from low to none. Added purpose/model boundary assertions and real-SDK serialized HTTP tests; production-mode live checks inspect rather than override the adapter's reasoning setting.
+Output: 16 targeted tests pass. Routing, generation, other providers/models and review timeout/validation remain unchanged.
+
+## Review latency optimization: Verify
+Status: Done
+Did: Verified actual SDK HTTP serialization and ran six real complex review fixtures with the production adapter. Initial testing caught unsolicited expansion of a correct introduction; added a narrowly scoped reviewer instruction and regression assertion, then all six live cases passed in 0.586-1.211s each.
+Output: Source regression suite, production build and frontend typecheck passed. Only supported direct DeepSeek V4 review calls disable thinking; no history/settings changes. The unrelated Node-test/Vitest discovery issue remains outside this change.
+
+## Answer and Note tags: Scope
+Status: Done
+Did: Inspected Router classification, production diagnostics visibility, history persistence and guarded Note formatting.
+Output: Display Chinese type/intent hashtags above answers, retain tags independently of development diagnostics, and add deterministic Markdown tags to newly formatted Notes without changing existing files outside the preview/save flow.
+
+## Answer and Note tags: Implement
+Status: Done
+Did: Added shared Chinese type/intent labels, persisted production-safe answer tags, legacy classification fallback and first-line Ask rendering. Note formatting deterministically adds deduplicated Markdown hashtags after optional frontmatter.
+Output: Notes retain the preview/save workflow, existing files are not batch-modified, and unknown classifications are not guessed. Diagnostic labels reuse the same source of truth.
+
+## Answer and Note tags: Verify
+Status: Done
+Did: Passed 913 source tests (42 opt-in skipped), production build and explicit frontend typecheck. Covered every type/intent, unknowns, production metadata, rendered first-line order, history reload, Note creation/update, deduplication and YAML preservation.
+Output: Answer and Note tags are persisted without extra model calls or changes to Router decisions. Native visual QA was not performed; no existing user Note files were modified.
+
+## Composer model menu: Scope
+Status: Done
+Did: Inspected saved provider credentials, model defaults, dynamic listing and settings persistence.
+Output: Add a two-level composer menu; only configured providers are selectable, selecting a model persists the active provider/model using saved settings without copying unsaved fields or secrets.
+
+## Composer model menu: Implement
+Status: Done
+Did: Added a portaled two-level dark menu with hover/click provider navigation, keyboard controls, credential gating, deduplicated saved/default/dynamic models and current-model checkmarks.
+Output: Composer selection persists active provider/model using saved prompt/language, retains current selection on failure and blocks submission during saving. The composer label now follows saved active settings instead of older answer metadata.
+
+## Composer model menu: Verify
+Status: Done
+Did: Passed 904 source tests (42 opt-in skipped), production build and explicit frontend typecheck. DOM regressions cover provider hover, dynamic models, credential gating, current checkmarks, save payloads, failure retention and keyboard dismissal.
+Output: Selection immediately updates the saved chat model without sending secrets or unsaved settings; empty/saving submission guards remain verified. Native visual QA and live model API calls were not performed.
+
+## Grammar review fallback: Scope
+Status: Done
+Did: Inspected review exceptions, validated draft caching, fallback transport and persisted retry links.
+Output: Retain the original draft on review failures with a distinct warning; reuse cached drafts on manual retry and preserve cancellation semantics.
+
+## Grammar review fallback: Implement
+Status: Done
+Did: Retained original generated content across review failures and invalid corrections, added distinct grammar warnings, and persisted the originating request ID for cached-draft retries.
+Output: Review failures remain unaccepted drafts with manual retry. Cancellation still aborts; validated drafts can be reused after transport and review-response failures.
+
+## Grammar review fallback: Verify
+Status: Done
+Did: Passed 900 source tests (42 opt-in skipped), production build and explicit frontend typecheck. Covered review timeout/network/invalid-response failures, original-output retention, cancellation, reload, failed retry and cached-review reuse.
+Output: Grammar failures now show a readable unverified draft and manual retry without accepting a KnowledgeCard. Cached retries avoid regeneration while valid; no live API calls or native visual QA were performed.
+
+## Format fallback: Scope
+Status: Done
+Did: Inspected generation validation, response transport, message persistence and retry behavior.
+Output: Preserve rejected generated content with a warning and manual retry. Never treat it as an accepted card; retain network, cancellation and grammar-review failure behavior.
+
+## Format fallback: Implement
+Status: Done
+Did: Added typed raw-output failures, transport metadata, readable fallback rendering and persisted per-answer retry links. Retried answers replace their original message only after a response; pending/network failures preserve it.
+Output: Invalid drafts remain distinct from accepted cards; original JSON remains accessible. No extra automatic provider request, and cancellation/review failures retain their handling.
+
+## Format fallback: Verify
+Status: Done
+Did: Passed 821 source tests (42 opt-in skipped), production build and frontend typecheck. Added malformed-output, no-extra-request, reload, pending/failed retry, repeated format failure and older-answer context regressions.
+Output: Confirmed original content survives failed retries and valid responses replace only the targeted answer without duplicating questions or altering later messages. No live provider calls or user-history writes were needed; native visual QA was not performed.
+
+## Answer duration: Scope
+Status: Done
+Did: Inspected submission, response rendering and local history persistence. Duration belongs to each completed assistant message, not the Router or a shared pending state.
+Output: Measure each submission with a monotonic clock until IPC response, persist milliseconds, and append total seconds to existing diagnostics. Retries start fresh; legacy messages show no recorded timing.
+
+## Answer duration: Implement
+Status: Done
+Did: Added per-answer responseDurationMs, recorded with a request-local monotonic clock and validated on history load. Appended total seconds to successful/error Router diagnostics, with an explicit unrecorded state for legacy messages.
+Output: Added DOM and persistence tests for response timing, remounts, retries, overlapping Asks and legacy messages. Existing development-only diagnostic visibility is unchanged.
+
+## Answer duration: Verify
+Status: Done
+Did: Passed 763 source tests (40 opt-in skipped), production build and frontend typecheck. DOM tests confirm the last diagnostic row, two-decimal display, persistence after remount, separate retry timing and independent overlapping requests.
+Output: New completed answers retain end-to-end elapsed time; old answers display unrecorded rather than estimated durations. No live model calls or changes to existing conversation content were needed.
+
+## Jev routing comparison: Scope
+Status: Done
+Did: Inspected the existing Router contract and confirmed the user's choice of comparison-only testing. The current Router also extracts targets, selects modules and writes clarification text, beyond Jev's categorical output.
+Output: Compare inputType, structureType, intent and responseMode using the same question/history. Keep application routing unchanged; no claims that Jev replaces the full Router.
+
+## Jev routing comparison: Implement
+Status: Done
+Did: Added a labels-only OpenRouter Decisions adapter with timeout/cancellation and redacted errors, offline tests, and 15 opt-in paired synthetic fixtures using the original Router.
+Output: Added reproducible commands and comparison reporting; no production routing, application settings or dependency changes.
+
+## Jev routing comparison: Verify
+Status: Done
+Did: Passed 17 new offline tests, 780 source tests (41 opt-in skipped), production build and all 15 paired live requests. All four categorical fields agreed and every explicitly labeled expectation passed; median latency was 410ms Jev versus 1576ms baseline, with $0.0010542 Jev cost.
+Output: Recorded results and reproduction steps in jev-router-comparison.md. Production routing remains unchanged. Full explicit main typechecking exposes existing NodeNext/import and assertion/type errors; Bundler-mode diagnostics contain no new Jev-file errors. This is a small labels-only comparison, not full Router replacement or end-to-end speed acceptance.
+
+## Jev production routing: Scope
+Status: Done
+Did: User authorized actual routing while retaining the original method. Inspected the classification contract, main-process credentials and module defaults.
+Output: Jev selects categorical labels; a bare single-word request can use deterministic targets/modules, while other requests use the current model to complete remaining fields. Missing credentials, uncertain/inconsistent labels or failures fall back to the unchanged Router. Cancellation must not trigger fallback.
+
+## Jev production routing: Implement
+Status: Done
+Did: Wired the Ask service to hybrid routing, with independent main-process OpenRouter credentials, a disable switch, confidence/coherence gates, direct bare-word routes and constrained completion for other targets. Preserved original routing as fallback and cancellation propagation.
+Output: Added hybrid/config/service regression coverage and an opt-in live test exercising classification plus full Ask generation. Original classifier remains independently callable for comparison.
+
+## Jev production routing: Verify
+Status: Done
+Did: Passed 804 source tests (42 opt-in skipped), build and frontend typecheck with Node test types. Live tests verified Jev bare-word routing, assisted say/tell target/module completion, uncertain-input fallback, and a complete Ask generated by the existing DeepSeek model. Fixed the new config parser type mismatch and rechecked its tests/build.
+Output: Main Ask requests now use Jev when credentials are available, with JEV_ROUTER_ENABLED=0 opt-out and unchanged original fallback. Recorded live evidence and limitations in jev-router-comparison.md; no history/settings writes. Existing unrelated main-process typecheck errors remain; new routing files have no Bundler-mode diagnostics.
+
+## Bare-word routing: Scope
+Status: Done
+Did: Inspected the hybrid Router and tests. The existing bare-word fast path unnecessarily waits for Jev even though target and modules are deterministic.
+Output: Move the existing no-history, single-English-token rule before both model paths, retain original casing and module defaults, and preserve cancellation. This is a routing policy, not dictionary or spelling validation.
+
+## Bare-word routing: Implement
+Status: Done
+Did: Moved bare-word routing before both model calls, retained existing lexical/history boundaries and defaults, and updated the live diagnostic expectation. Added with/without-key, follow-up, cancellation and service-generation checks; changed conversational fixtures from hello to hello there to retain their intended branch.
+Output: Bare words now use source=rule without classification API calls; answer generation and other routing paths remain intact.
+
+## Bare-word routing: Verify
+Status: Done
+Did: Passed 838 source tests (42 opt-in skipped), production build and explicit frontend typecheck with Node test types. Updated routing documentation and disable-switch comments; no live API calls were needed for this deterministic rule.
+Output: Verified no classification calls for bare words with or without Jev credentials, preserved history/cancellation boundaries and continued answer generation. Historical live timings are identified as preceding this optimization.
+
+## Jev model settings: Scope
+Status: Done
+Did: Inspected settings persistence, renderer form and routing credentials. Confirmed independent Jev settings can use the existing settings IPC without changing answer providers.
+Output: Add enabled switch and dedicated optional OpenRouter key, blank-save preservation and explicit removal. Preserve existing fallback credentials and environment disable switches.
+
+## Jev model settings: Implement
+Status: Done
+Did: Added optional persisted Jev enabled/key fields, strict request validation, dedicated-key precedence, masked metadata and model settings controls with explicit removal on save.
+Output: Added real-file persistence, routing precedence/disable and rendered save/reload/removal/failure tests. Existing answer provider and fallback credentials remain independent.
+
+## Jev model settings: Verify
+Status: Done
+Did: Passed 989 source tests (42 opt-in skipped), production build and explicit frontend typecheck. Verified the current native EnglishAsk settings screen displays the Jev controls and save button without overlap; updated routing documentation.
+Output: Save/reload/removal/failure behavior and credential precedence are covered automatically. No real credentials were changed and no paid API requests were made.
+
+## Separate Jev settings page: Scope
+Status: Done
+Did: Inspected the settings navigation, shared form handler and existing Jev flow tests.
+Output: Add Jev immediately below Models; move its controls to an independent page and save only that page's draft values.
+
+## Separate Jev settings page: Implement
+Status: Done
+Did: Added Jev below Models, moved its controls into a dedicated form, and isolated model versus Jev draft submission without changing persistence or routing.
+Output: Updated navigation/save/reload tests and added cross-page draft isolation coverage; updated the documented settings path.
+
+## Separate Jev settings page: Verify
+Status: Done
+Did: Passed 990 source tests (42 opt-in skipped), production build and explicit frontend typecheck. Opened the current native Jev page and verified menu order, controls and save button.
+Output: Jev has its own page directly below Models; page-specific saves preserve the other page's drafts and stored configuration. No real settings or credentials were changed during verification.
+
+## Jev settings visual consistency: Scope
+Status: Done
+Did: Compared Jev with Models and Notes settings. Jev alone uses an inset bordered fieldset with compressed fields.
+Output: Use shared flat field groups, label/input sizing and spacing, with read-only provider/model fields and the existing controls and save behavior.
+
+## Jev settings visual consistency: Implement
+Status: Done
+Did: Replaced the bordered Jev fieldset with shared flat field groups for provider, key, model and enable control. Reused form spacing/input/button styles and preserved disabling and removal behavior.
+Output: Removed Jev-only card styling; updated the existing removal test selector to its accessible label.
+
+## Jev settings visual consistency: Verify
+Status: Done
+Did: Ran the settings interaction and UI regression tests, production build and explicit frontend typecheck. Inspected the current native Jev page after opening its menu.
+Output: Automated checks passed and the page now uses the shared flat settings layout with aligned labels, inputs and save action. No real settings were saved during verification.
+
+## Jev channels: Scope
+Status: Done
+Did: Inspected existing settings/routing and verified TypeSafe, Vercel TypeSafe-compatible and Cloudflare REST contracts in their official documentation.
+Output: Support four fixed channels, isolated saved keys and Cloudflare account ID; default/migrate to OpenRouter. Preserve local rules, confidence validation, cancellation and original fallback. No new SDK dependencies or automatic cross-channel retries.
+
+## Jev channels: Implement
+Status: Done
+Did: Added four fixed channel definitions, isolated key persistence with legacy OpenRouter migration, channel/account-aware runtime resolution, request adapters and per-channel UI drafts. Added contract, isolation, migration, Cloudflare validation and UI switching/reload tests.
+Output: Existing OpenRouter behavior remains default; other channels require their own credentials, Cloudflare requires its account ID, and all preserve strict classification validation and original-model fallback.
+
+## Jev channels: Verify
+Status: Done
+Did: Full source suite passed 1031 tests before the final UI case; final targeted suite passed 153 tests, production rebuild and frontend typecheck passed. Fixed the settings assertion annotation; main Bundler diagnostics contain no settings/Jev/hybrid errors, while unrelated existing main errors remain.
+Output: Verified channel request contracts, migration, key/draft isolation, account validation, fallback and rendered UI save/reload. Native automation could not navigate the dev window reliably, so native visual verification remains inconclusive. No real credentials were changed or new-channel authenticated calls made; documented those limits and environment options.
+
+## Jev disabled controls: Scope
+Status: Done
+Did: Checked the Jev form and custom select. The enable switch currently leaves channel fields editable.
+Output: Disable and dim configuration below the switch when unchecked, keep enable/save usable, preserve drafts and saved values.
+
+## Jev disabled controls: Implement
+Status: Done
+Did: Wrapped channel/key/account/model controls in a borderless disabled fieldset with dimming, and explicitly disabled custom select and inputs. Kept the enable switch and save action outside the group.
+Output: Preserves configuration drafts and restores editing when re-enabled; added rendered interaction coverage and updated the deletion flow to enable editing first.
+
+## Jev disabled controls: Verify
+Status: Done
+Did: Passed 17 rendered settings tests, production build and explicit frontend typecheck.
+Output: Verified disabled fields cannot open the selector, save remains enabled, disabled state persists after save and re-enabling restores the draft.
+
+## Independent Jev configuration: Scope
+Status: Done
+Did: Confirmed runtime currently falls back to answer-provider keys and environment values, contrary to the requested complete separation.
+Output: Production Jev uses only its saved channel key, enabled switch and Cloudflare account ID. Keep standalone diagnostic scripts separate and preserve existing settings without copying credentials.
+
+## Independent Jev configuration: Implement
+Status: Done
+Did: Removed shared-provider, process environment and .env credentials/account/switch reads from production Jev configuration. Updated UI and documentation to require dedicated saved settings; retained explicit standalone diagnostics.
+Output: All four channels are independent; absent/deleted dedicated credentials skip Jev and use the existing routing fallback without copying keys.
+
+## Independent Jev configuration: Verify
+Status: Done
+Did: Passed 131 targeted settings/routing/service/UI tests, production build and frontend typecheck. Tests populate shared/environment keys and verify they cannot enable Jev, including after deletion; Cloudflare requires its saved account ID.
+Output: Verified dedicated configuration isolation and existing save/disabled/fallback flows. No real saved credentials were changed or network requests made.
+
+## Jev routing diagnostics: Scope
+Status: Done
+Did: Inspected actual hybrid branches, diagnostic transport, history validation and classifier UI.
+Output: Record per-request routing source and optional channel independently of model JSON. Show accepted Jev versus attempted/fallback, local rules and original routing; legacy/resumed records without provenance show unrecorded.
+
+## Jev routing diagnostics: Implement
+Status: Done
+Did: Added per-request routing metadata from actual hybrid branches, transported it on success/error diagnostics, validated persisted channel metadata and rendered Jev usage plus channel in the classifier.
+Output: Tests cover local/original/accepted/fallback paths and UI history restoration; old records show unrecorded rather than inferring from current settings.
+
+## Jev routing diagnostics: Verify
+Status: Done
+Did: Passed 1045 source tests (42 opt-in skipped), production build and explicit frontend typecheck, including routing branch metadata, service transport and rendered history restoration.
+Output: Classifier diagnostics report actual Jev use/adoption/fallback and channel. Legacy or resumed classifications without provenance show unrecorded; no actual API calls or saved setting changes were needed.
+
+## Saved credential mask length: Scope
+Status: Done
+Did: Confirmed typed passwords render their actual length but saved values use a fixed 19-character placeholder.
+Output: Return saved-key length metadata only and render masks of that length for both model and Jev settings, including reloads. Never return saved key contents or submit masks.
+
+## Saved credential mask length: Implement
+Status: Done
+Did: Exposed saved credential lengths without key contents and used those lengths for both model and Jev masks. Added save/reload/blank-save tests and updated legacy metadata expectations.
+Output: Saved masks retain original key lengths, persist across reloads and are never submitted as credentials.
+
+## Saved credential mask length: Verify
+Status: Done
+Did: Full suite passed 1058 tests (42 skipped). Fixed the optional provider metadata type access, then reran all 20 settings interaction tests, production build and frontend typecheck successfully.
+Output: Verified both pages retain dot counts after saving and reload, preserve blank-save behavior and do not return actual saved credentials.

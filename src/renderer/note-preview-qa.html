@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>Note preview QA</title></head>
+<body><div id="root"></div><script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { NoteUpdatePreview } from './src/note-update-preview.tsx';
+import './src/styles.css';
+const before = '# Study note\n\n## Original meaning\n\nMy handwritten explanation.\n\n1. First example.\n2. Second example.';
+const after = '# Study note\n\n## Original meaning\n\nMy handwritten explanation.\n\n## New explanation\n\nAdditional context from the Ask.\n\n1. First example.\n2. Second example.\n3. A newly added example.';
+createRoot(document.getElementById('root')).render(React.createElement(NoteUpdatePreview, {
+ title: '学习笔记 · Study note', before, after, saving: false, error: null,
+ onCancel: () => {}, onConfirm: () => {}
+}));
+</script></body></html>
