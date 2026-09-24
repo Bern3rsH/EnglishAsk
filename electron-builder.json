@@ -1,0 +1,25 @@
+{
+  "appId": "com.bern3rsh.englishask",
+  "productName": "EnglishAsk",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "out/**/*",
+    "package.json",
+    "!**/*.map",
+    "!**/.env",
+    "!**/.env.*"
+  ],
+  "asar": true,
+  "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+  "mac": {
+    "category": "public.app-category.education",
+    "icon": "build/icon.png",
+    "target": ["dmg", "zip"],
+    "identity": "-",
+    "notarize": false
+  },
+  "publish": null
+}

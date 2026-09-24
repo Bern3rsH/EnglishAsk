@@ -1,5 +1,23 @@
 # Electron AI SDK Rebuild Plan
 
+## macOS first release: Scope
+Status: Done
+Did: Checked the clean dev branch, accepted icon, installed build tools and empty GitHub Releases. Confirmed Apple Silicon host and no Developer ID signing certificate.
+Output: Publish v0.1.0 as an ARM64 macOS prerelease with DMG, ZIP and SHA-256 checksums. Preserve dev, advance main only by fast-forward, exclude local credentials and development files, and disclose lack of Apple notarization.
+
+## macOS first release: Package
+Status: Done
+Did: Added ARM64 DMG/ZIP packaging, accepted PNG icon, compiled-file allowlist, ad-hoc signing and disabled telemetry for the release build. Added packaging contract tests.
+Output: Generated EnglishAsk 0.1.0 DMG and ZIP in release/ with electron-builder 26.15.3 and Electron 42.5.1; no Developer ID certificate or notarization is claimed.
+
+## macOS first release: Verify
+Status: Done
+Did: Passed 1072 source tests (42 opt-in skipped), frontend TypeScript and build. Launched the packaged app in an isolated profile and verified renderer plus Settings/Notes IPC. Checked ASAR exclusions, configured-secret absence, ad-hoc signature and DMG integrity.
+Output: ARM64 artifacts are ready with release notes explaining Gatekeeper/notarization limitations. No live provider calls or installation on another Mac were tested; existing user settings and Notes were not accessed.
+
+## macOS first release: Publish
+Status: Pending
+
 ## Development-only classifier display: Verification
 Status: Done
 Did: Confirmed the existing import.meta.env.DEV rendering guard and added real App tests covering fresh and restored success/error diagnostics in development and production modes. Kept classification data and learning behavior unchanged.

@@ -1,12 +1,15 @@
 {
   "name": "english-ask",
   "version": "0.1.0",
+  "description": "English learning desktop app with AI answers and Markdown study notes",
+  "author": "Bern3rsH",
   "private": true,
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev --watch",
     "build": "tsc --noEmit && electron-vite build",
+    "package:mac": "VITE_TELEMETRY_DISABLED=1 VITE_POSTHOG_KEY= npm run build && electron-builder --config electron-builder.json --mac --arm64 --publish never",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "postinstall": "electron-builder install-app-deps"
