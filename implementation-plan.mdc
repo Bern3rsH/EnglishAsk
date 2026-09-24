@@ -16,7 +16,9 @@ Did: Passed 1072 source tests (42 opt-in skipped), frontend TypeScript and build
 Output: ARM64 artifacts are ready with release notes explaining Gatekeeper/notarization limitations. No live provider calls or installation on another Mac were tested; existing user settings and Notes were not accessed.
 
 ## macOS first release: Publish
-Status: Pending
+Status: Done
+Did: Synced packaging commit d7b8f6c0 to dev/main and tagged v0.1.0. Uploaded DMG, ZIP and SHA256SUMS.txt to a draft, compared all remote sizes/digests with local files, then published as a prerelease.
+Output: https://github.com/Bern3rsH/EnglishAsk/releases/tag/v0.1.0 is public with all three verified assets. Release notes disclose ARM64-only support, ad-hoc signing, no notarization and untested live provider calls. Local development remains on dev.
 
 ## Development-only classifier display: Verification
 Status: Done
