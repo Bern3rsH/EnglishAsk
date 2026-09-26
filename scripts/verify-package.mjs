@@ -1,17 +1,14 @@
-import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
+import { verifyArchiveFiles } from './package-archive-checks.mjs'
 
 const require = createRequire(import.meta.url)
 const { listPackage, extractAll } = require('@electron/asar')
 const archive = resolve(process.argv[2] ?? 'release/mac-arm64/EnglishAsk.app/Contents/Resources/app.asar')
-const files = listPackage(archive)
-assert(files.includes('/node_modules/zod/package.json'), 'Packaged app must include the AI SDK zod runtime dependency')
-assert(!files.some(file => /(^|\/)\.env(?:\.|$)/.test(file)), 'Environment files must not be packaged')
-assert(!files.some(file => /^\/(src|scripts|\.git)(\/|$)/.test(file)), 'Development files must not be packaged')
+verifyArchiveFiles(listPackage(archive))
 const isolatedDirectory = mkdtempSync(join(tmpdir(), 'englishask-package-dependencies-'))
 
 try {

@@ -9,6 +9,19 @@ import test from 'node:test'
 import { extractReleaseNotes, loadReleaseNotes, projectRoot } from './extract-release-notes.mjs'
 import { packageRelease } from './package-release.mjs'
 import { publishRelease, releaseAssetNames } from './publish-release.mjs'
+import { verifyArchiveFiles } from './package-archive-checks.mjs'
+
+for (const separator of ['/', '\\']) {
+  test(`archive checks accept ${JSON.stringify(separator)} paths and still reject missing dependencies and sensitive files`, () => {
+    const path = value => value.replaceAll('/', separator)
+    const required = path('/node_modules/zod/package.json')
+    assert.doesNotThrow(() => verifyArchiveFiles([required, path('/out/main/index.js')]))
+    assert.throws(() => verifyArchiveFiles([path('/out/main/index.js')]), /zod/)
+    for (const forbidden of ['/.env', '/nested/.env.local', '/src/main/index.ts', '/scripts/build.js', '/.git/config']) {
+      assert.throws(() => verifyArchiveFiles([required, path(forbidden)]), /must not be packaged/)
+    }
+  })
+}
 
 test('extracts only the exact version, preserving categories, Markdown and fenced headings', () => {
   const content = '# Notes\r\n## v1.2.30\r\nwrong\r\n## v1.2.3 — date\r\n### 中文\r\n- 更新\r\n```md\r\n## example\r\n```\r\n## v1.2.2\r\nold'

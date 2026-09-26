@@ -6,14 +6,14 @@ Did: Read the current release notes and all pending application/release changes,
 Output: Commit the pending startup fix, production prompt visibility and cross-platform release workflow; fast-forward dev/main together and push v0.1.1 to trigger the verified release workflow.
 
 ## v0.1.1 release: Validate and synchronize
-Status: Pending
-Did: Passed 1076 source tests (42 opt-in skipped), all 14 release-tool tests, production build, version consistency and diff checks. Remote dev/main match the shared local base.
-Output: Reviewed changes are ready to commit and fast-forward onto both branches; tag publication follows synchronization.
+Status: Done
+Did: Passed 1076 source tests (42 opt-in skipped), all 14 release-tool tests, production build, version consistency and diff checks. Committed da4d6819, fast-forwarded main to dev and atomically pushed both branches.
+Output: Pushed annotated v0.1.1 at da4d6819; GitHub Release workflow 36253877741 is running against that exact commit.
 
 ## v0.1.1 release: Publish and verify
 Status: Pending
-Did: Not started.
-Output: Follow both native build jobs and publication, verify release notes/assets and record final branch/tag state.
+Did: First workflow passed macOS builds and created all Windows formats, but the Windows archive check failed. The ASAR library uses path.join to list files, while the checker assumed slash-only paths; normalized separators and added Windows/POSIX exclusion and missing-dependency regressions.
+Output: Revalidate and synchronize the checker fix, then move only the unpublished v0.1.1 tag with an exact remote lease and rerun the release. No Release was created by the failed attempt.
 
 ## FenyiDic release workflow: Scope
 Status: Done
