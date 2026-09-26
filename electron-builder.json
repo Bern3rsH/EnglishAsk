@@ -19,6 +19,7 @@
     "icon": "build/icon.png",
     "target": ["dmg", "zip"],
     "identity": "-",
+    "hardenedRuntime": false,
     "notarize": false
   },
   "win": {

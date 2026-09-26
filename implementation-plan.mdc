@@ -1,5 +1,30 @@
 # Electron AI SDK Rebuild Plan
 
+## v0.1.2 GitHub release: Uninstall and prepare
+Status: Done
+Did: User authorized uninstalling the local test app and publishing 0.1.2 for another download/install test. Moved /Applications/EnglishAsk.app to Trash, confirmed its absence, fetched remote refs and verified v0.1.2 is not published.
+Output: Preserve settings/notes and disclose the still-reproducible installed startup issue in the versioned release notes; publication is now authorized despite that known limitation.
+
+## v0.1.2 GitHub release: Publish and verify
+Status: Pending
+Did: Not started.
+Output: Validate pending changes, synchronize dev/main, push v0.1.2, follow native build/publication jobs and verify public notes/assets.
+
+## v0.1.2 macOS startup test: Scope
+Status: Done
+Did: Reviewed the clean checkout, v0.1.1 ad-hoc/runtime signing settings and prior installed-app loader stalls. Temporary re-signing without hardened runtime reached the renderer, but did not establish installed-path recovery.
+Output: Build a local ARM64 0.1.2 candidate with hardened runtime explicitly disabled for ad-hoc signing; retain entitlements, application behavior and unsigned-distribution disclosure. Verify real package signatures and first/repeated installed startup before claiming recovery; do not publish yet.
+
+## v0.1.2 macOS startup test: Implement
+Status: Done
+Did: Set package/lockfile versions to 0.1.2, disabled macOS hardenedRuntime for the existing ad-hoc signer and added accurate test-release notes. Added signing and version-consistency assertions.
+Output: All 16 release-tool tests and three packaging tests pass; actual package generation and installed startup verification follow.
+
+## v0.1.2 macOS startup test: Verify
+Status: Done
+Did: Built ARM64 0.1.2 DMG/ZIP; package imports, DMG integrity, 16 release-tool tests and three packaging tests pass. Verified 13 signed bundles/libraries lack the runtime flag. ZIP extracted outside the repository passed two consecutive renderer and Settings/Notes IPC checks with an isolated profile.
+Output: Installed 0.1.2 with original app backed up at /private/tmp/englishask-before-012-7eu1ai8f/EnglishAsk.app. Both direct launch (25 seconds) and LaunchServices launch (20 seconds) failed to reach the renderer at /Applications, so disabling hardened runtime is not an established fix. Candidate remains local and installed for testing; no Git commit, tag or release publication. User settings/notes were not changed.
+
 ## v0.1.1 release: Preflight
 Status: Done
 Did: Read the current release notes and all pending application/release changes, fetched origin branches/tags and checked GitHub Releases. package.json and both lockfile version fields already equal 0.1.1; dev/main share the same base and v0.1.1 does not exist remotely.
