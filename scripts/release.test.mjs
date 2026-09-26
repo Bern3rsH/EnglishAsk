@@ -96,6 +96,8 @@ function fixture(callback) {
       return JSON.stringify([state.existing])
     }
     if (state.failUpload && (args[1] === 'create' || args[1] === 'upload')) throw new Error('Upload failed')
+    if (args[1] === 'create') state.existing = [{ id: 123, tag_name: tag, draft: true }]
+    if (args[0] === 'api') assert.equal(args[1], 'repos/Bern3rsH/EnglishAsk/releases/123', 'Drafts must be fetched by ID, not by tag')
     if (args[0] === 'api') return JSON.stringify({
       draft: true, body: '- Tested release\n',
       assets: [...releaseAssetNames(version), 'SHA256SUMS.txt'].map(name => {
@@ -120,7 +122,7 @@ test('publishes exactly seven artifacts plus checksums only after remote verific
 }))
 
 test('existing drafts can resume uploads; published releases cannot be overwritten', () => fixture(({ root, tag, calls, state, run }) => {
-  state.existing = [{ tag_name: tag, draft: true }]
+  state.existing = [{ id: 123, tag_name: tag, draft: true }]
   publishRelease(tag, { root, run })
   assert(calls.some(args => args[1] === 'upload' && args.includes('--clobber')))
   assert(!calls.some(args => args[1] === 'create'))

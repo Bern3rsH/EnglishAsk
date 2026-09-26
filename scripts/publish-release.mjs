@@ -47,7 +47,11 @@ export function publishRelease(tag, { root = projectRoot, run = execFileSync } =
         '--verify-tag', '--draft', '--title', `EnglishAsk ${tag}`, '--notes-file', notesPath,
         ...(version.includes('-') ? ['--prerelease'] : [])])
     }
-    const remote = JSON.parse(gh(['api', `repos/${repository}/releases/tags/${tag}`]))
+    // GitHub's tag endpoint does not expose drafts; resolve the authenticated draft ID instead.
+    const drafts = JSON.parse(gh(['api', `repos/${repository}/releases`, '--paginate', '--slurp'])).flat()
+    const draft = drafts.find(release => release.tag_name === tag)
+    assert(draft?.draft && Number.isSafeInteger(draft.id), 'Expected an uploaded draft release')
+    const remote = JSON.parse(gh(['api', `repos/${repository}/releases/${draft.id}`]))
     assert(remote.draft, 'Release must remain a draft until all uploads are verified')
     assert.equal(remote.body?.trim(), notes.trim(), 'Uploaded release notes do not match')
     assert.equal(remote.assets.length, assets.length, 'Unexpected remote release assets')
