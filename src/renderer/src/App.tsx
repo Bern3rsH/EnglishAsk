@@ -647,7 +647,8 @@ export const App = (): ReactElement => {
   const providerApiKeyInputValue = shouldShowSavedApiKeyMask
     ? savedApiKeyMask(settings?.providerSettings?.[selectedModelProvider]?.savedApiKeyLength)
     : providerApiKey
-  const visibleSettingsSection = activeSettingsSection
+  const visibleSettingsSection = !import.meta.env.DEV && activeSettingsSection === 'prompts'
+    ? 'models' : activeSettingsSection
   const telemetryView =
     activeView === 'settings' ? `settings:${visibleSettingsSection}` : activeWorkspace
 
@@ -2960,7 +2961,7 @@ export const App = (): ReactElement => {
     </section>
   )
 
-  const promptsSettingsContent = (
+  const promptsSettingsContent = import.meta.env.DEV ? (
     <section className="settingsPage" aria-label="提示词">
       <div className="promptDesignList">
         <article className="promptDesignCard">
@@ -2996,7 +2997,7 @@ export const App = (): ReactElement => {
         </div>
       ) : null}
     </section>
-  )
+  ) : null
 
   const storageSettingsContent = (
     <section className="settingsPage" aria-label="Notes">
@@ -3777,17 +3778,19 @@ export const App = (): ReactElement => {
               >
                 Jev（可选）
               </button>
-              <button
-                className={
-                  visibleSettingsSection === 'prompts'
-                    ? 'settingsSidebarItem settingsSidebarItem-active'
-                    : 'settingsSidebarItem'
-                }
-                onClick={() => setActiveSettingsSection('prompts')}
-                type="button"
-              >
-                提示词
-              </button>
+              {import.meta.env.DEV ? (
+                <button
+                  className={
+                    visibleSettingsSection === 'prompts'
+                      ? 'settingsSidebarItem settingsSidebarItem-active'
+                      : 'settingsSidebarItem'
+                  }
+                  onClick={() => setActiveSettingsSection('prompts')}
+                  type="button"
+                >
+                  提示词
+                </button>
+              ) : null}
               <button
                 className={
                   visibleSettingsSection === 'storage'

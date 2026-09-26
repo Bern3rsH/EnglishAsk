@@ -32,6 +32,7 @@ async function selectProvider(label: string) {
 
 beforeEach(async () => {
   vi.resetAllMocks()
+  vi.stubEnv('DEV', true)
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   Element.prototype.scrollIntoView = vi.fn()
   Element.prototype.scrollTo = vi.fn()
@@ -83,6 +84,36 @@ afterEach(async () => {
   host.remove()
   localStorage.clear()
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+})
+
+it('shows read-only prompt settings in development', async () => {
+  await clickText('提示词')
+  const preview = query<HTMLTextAreaElement>('[aria-label="系统提示词预览"]')
+  expect(preview.readOnly).toBe(true)
+  expect(preview.value).toBe(settings.systemPrompt)
+  expect(host.querySelectorAll('.promptPreview').length).toBeGreaterThan(0)
+})
+
+it('hides prompt navigation and previews in production without changing saved prompts', async () => {
+  vi.stubEnv('DEV', false)
+  await act(() => root.render(<App />))
+  expect([...host.querySelectorAll('.settingsSidebarNav button')].map(item => item.textContent?.trim()))
+    .toEqual(['模型', 'Jev（可选）', 'Notes'])
+  expect(host.querySelector('[aria-label="提示词"]')).toBeNull()
+  expect(host.querySelector('[aria-label="系统提示词预览"]')).toBeNull()
+  expect(host.querySelector('.promptPreview')).toBeNull()
+  await clickText('保存设置')
+  expect(saveSettings).toHaveBeenLastCalledWith(expect.objectContaining({ systemPrompt: 'Answer clearly.' }))
+})
+
+it('falls back to model settings when a selected prompt section is unavailable', async () => {
+  await clickText('提示词')
+  vi.stubEnv('DEV', false)
+  await act(() => root.render(<App />))
+  expect(host.querySelector('[aria-label="系统提示词预览"]')).toBeNull()
+  expect(host.querySelector('#providerApiKey')).not.toBeNull()
+  expect(host.querySelector('.settingsSidebarItem-active')?.textContent?.trim()).toBe('模型')
 })
 
 it('saves and reloads Jev independently and preserves its saved key on blank saves', async () => {

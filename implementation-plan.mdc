@@ -1,5 +1,60 @@
 # Electron AI SDK Rebuild Plan
 
+## v0.1.1 release: Preflight
+Status: Done
+Did: Read the current release notes and all pending application/release changes, fetched origin branches/tags and checked GitHub Releases. package.json and both lockfile version fields already equal 0.1.1; dev/main share the same base and v0.1.1 does not exist remotely.
+Output: Commit the pending startup fix, production prompt visibility and cross-platform release workflow; fast-forward dev/main together and push v0.1.1 to trigger the verified release workflow.
+
+## v0.1.1 release: Validate and synchronize
+Status: Pending
+Did: Passed 1076 source tests (42 opt-in skipped), all 14 release-tool tests, production build, version consistency and diff checks. Remote dev/main match the shared local base.
+Output: Reviewed changes are ready to commit and fast-forward onto both branches; tag publication follows synchronization.
+
+## v0.1.1 release: Publish and verify
+Status: Pending
+Did: Not started.
+Output: Follow both native build jobs and publication, verify release notes/assets and record final branch/tag state.
+
+## FenyiDic release workflow: Scope
+Status: Done
+Did: Compared FenyiDic's versioned release-notes.md, tag/manual workflow and platform scripts with EnglishAsk's current ARM64 packaging and isolated archive checks.
+Output: Adopt version-matched handwritten notes and tag-triggered/manual GitHub Releases; retain package verification before upload. User confirmed macOS ARM64/x64 and Windows x64 NSIS/ZIP/portable; publish together only after both platform jobs pass. Unrelated working changes remain intact.
+
+## FenyiDic release workflow: Implement
+Status: Done
+Did: Added versioned release notes and extraction, native macOS ARM64/x64 and Windows x64 packaging commands, tag/manual Actions jobs, verified draft publication and release instructions. Kept the original ARM64-only local command and package dependency checks.
+Output: Thirteen automated release-tool checks and three existing packaging checks pass, including missing notes/assets, tag mismatch, upload/network/checksum failures, draft retry and published-release protection. Real packaging verification follows.
+
+## FenyiDic release workflow: Verify
+Status: Done
+Did: Passed all 14 release-tool tests, three existing packaging tests, workflow YAML checks and diff checks. Built real macOS ARM64/x64 DMG and ZIP artifacts and passed isolated runtime-import/archive-exclusion checks for both architectures.
+Output: Local macOS packaging is verified. Windows packaging and remote GitHub upload/publication are configured and covered by mocked failure-path tests but were not executed here; native GUI startup on Intel/Windows is not verified. No commit, tag push or public release was performed.
+
+## Development-only prompt settings: Scope
+Status: Done
+Did: Inspected settings navigation, prompt previews and existing environment guards.
+Output: Gate both the prompt settings entry and its content on import.meta.env.DEV; fall back to Models for an unavailable prompt section without changing generation or saved prompts.
+
+## Development-only prompt settings: Implement and verify
+Status: Done
+Did: Gated prompt navigation and previews with import.meta.env.DEV and redirected unavailable prompt selection to Models. Added DOM regressions for development read-only previews, production hiding, saved-prompt preservation and fallback.
+Output: All 25 focused settings tests, frontend TypeScript and production build passed. Compiled renderer JavaScript excludes prompt preview markers. Installed applications and published releases were not replaced.
+
+## Packaged startup dependency fix: Diagnose
+Status: Done
+Did: Confirmed the installed v0.1.0 ASAR lacks zod although AI SDK packages declare it as a peer dependency and npm installed it locally. The screenshot shows an uncaught ERR_MODULE_NOT_FOUND before application startup.
+Output: Explicitly ship zod as a production dependency, add an isolated ASAR dependency check, and rebuild as v0.1.1. The previous in-repository smoke check did not establish installation independence; Gatekeeper is a separate limitation.
+
+## Packaged startup dependency fix: Implement
+Status: Done
+Did: Declared zod 4.4.3 as a direct production dependency, refreshed the lockfile, bumped the patch version to 0.1.1 and added a post-package isolated ASAR import check plus regression coverage.
+Output: The new archive check rejects the installed v0.1.0 with the missing-zod assertion. All 1073 source tests pass (42 opt-in skipped); corrected installation verification follows.
+
+## Packaged startup dependency fix: Verify
+Status: Done
+Did: Built v0.1.1 DMG/ZIP and passed isolated ASAR imports. Extracted the ZIP outside the repository, verified real renderer startup and Settings/Notes IPC, then backed up the installed v0.1.0 and installed v0.1.1 in /Applications. Repeated the isolated-profile smoke test against that installed app successfully.
+Output: All 1073 source tests pass (42 opt-in skipped). Installed app signature integrity passes and zod is present in the 4707-entry ASAR. Existing user data and system security settings were not changed. New artifacts are local only; GitHub still hosts v0.1.0 pending a separate release update.
+
 ## macOS first release: Scope
 Status: Done
 Did: Checked the clean dev branch, accepted icon, installed build tools and empty GitHub Releases. Confirmed Apple Silicon host and no Developer ID signing certificate.

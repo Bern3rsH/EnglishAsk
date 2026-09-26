@@ -1,6 +1,6 @@
 {
   "name": "english-ask",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "English learning desktop app with AI answers and Markdown study notes",
   "author": "Bern3rsH",
   "private": true,
@@ -9,7 +9,12 @@
   "scripts": {
     "dev": "electron-vite dev --watch",
     "build": "tsc --noEmit && electron-vite build",
-    "package:mac": "VITE_TELEMETRY_DISABLED=1 VITE_POSTHOG_KEY= npm run build && electron-builder --config electron-builder.json --mac --arm64 --publish never",
+    "package:mac": "VITE_TELEMETRY_DISABLED=1 VITE_POSTHOG_KEY= npm run build && electron-builder --config electron-builder.json --mac --arm64 --publish never && npm run verify:package",
+    "verify:package": "node scripts/verify-package.mjs",
+    "dist:mac": "node scripts/package-release.mjs mac",
+    "dist:win": "node scripts/package-release.mjs win",
+    "release:notes": "node scripts/extract-release-notes.mjs",
+    "test:release": "node --test scripts/release.test.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "postinstall": "electron-builder install-app-deps"
@@ -27,7 +32,8 @@
     "lucide-react": "^1.37.0",
     "msedge-tts": "^2.0.4",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "latest",

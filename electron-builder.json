@@ -21,5 +21,24 @@
     "identity": "-",
     "notarize": false
   },
+  "win": {
+    "icon": "build/icon.png",
+    "target": [
+      { "target": "nsis", "arch": ["x64"] },
+      { "target": "zip", "arch": ["x64"] },
+      { "target": "portable", "arch": ["x64"] }
+    ]
+  },
+  "nsis": {
+    "artifactName": "${productName}-${version}-win-${arch}-setup.${ext}",
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  },
+  "portable": {
+    "artifactName": "${productName}-${version}-win-${arch}-portable.${ext}"
+  },
   "publish": null
 }
