@@ -6,9 +6,9 @@ Did: User authorized uninstalling the local test app and publishing 0.1.2 for an
 Output: Preserve settings/notes and disclose the still-reproducible installed startup issue in the versioned release notes; publication is now authorized despite that known limitation.
 
 ## v0.1.2 GitHub release: Publish and verify
-Status: Pending
-Did: Not started.
-Output: Validate pending changes, synchronize dev/main, push v0.1.2, follow native build/publication jobs and verify public notes/assets.
+Status: Done
+Did: Passed 16 release-tool tests and three packaging tests; committed d85cfa86, synchronized dev/main and pushed v0.1.2. Workflow 36257128954 passed validation, both native builds and publication.
+Output: Published https://github.com/Bern3rsH/EnglishAsk/releases/tag/v0.1.2 at 2026-09-26T16:58:50Z. Independently verified the exact release notes, all eight expected assets and SHA-256 manifest against remote digests. Local application remains uninstalled, user data preserved; notes explicitly retain the unresolved installed-startup limitation.
 
 ## v0.1.2 macOS startup test: Scope
 Status: Done
