@@ -11,9 +11,9 @@ Did: Passed 1076 source tests (42 opt-in skipped), all 14 release-tool tests, pr
 Output: Pushed annotated v0.1.1 at da4d6819; GitHub Release workflow 36253877741 is running against that exact commit.
 
 ## v0.1.1 release: Publish and verify
-Status: Pending
-Did: Fixed Windows ASAR separator handling with regression coverage. Workflow 36254257543 then passed both native build jobs and uploaded all eight draft assets; publication stopped because GitHub's tag endpoint returns 404 for drafts. Changed remote verification to resolve and fetch the authenticated draft ID, with a regression assertion.
-Output: Draft v0.1.1 exists with all expected SHA-256 digests; revalidate and synchronize the API fix, then retry publication before marking this step complete.
+Status: Done
+Did: Fixed and regression-tested Windows ASAR separator handling and draft-release lookup by ID. Final workflow 36254655312 passed validation, native macOS/Windows builds and publication at tagged commit 0450e5fe; all 16 release-tool tests pass.
+Output: https://github.com/Bern3rsH/EnglishAsk/releases/tag/v0.1.1 was published at 2026-09-26T16:17:54Z with four macOS downloads, three Windows downloads and SHA256SUMS.txt. Independently verified public/non-prerelease state, exact handwritten notes, eight expected assets and all checksum entries against GitHub digests. No Intel/Windows GUI startup claim is made; dev/main receive this final documentation record without moving the published tag.
 
 ## FenyiDic release workflow: Scope
 Status: Done
