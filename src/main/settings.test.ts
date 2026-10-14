@@ -8,6 +8,7 @@ import {
   getDefaultNoteStorageDirectory,
   deleteProviderApiKey,
   getSettingsState,
+  getConfiguredOllamaBaseUrl,
   resetConfiguredNoteStorageDirectory,
   saveSettings,
   setConfiguredNoteStorageDirectory
@@ -24,6 +25,28 @@ vi.mock('electron', () => ({
 }))
 
 describe('settings model provider', () => {
+  it('defaults timestamps off, persists the switch, and preserves it across unrelated saves', async () => {
+    const request = { modelProvider: 'ollama', modelName: 'qwen3:8b', defaultAnswerLanguage: 'zh', systemPrompt: 'Answer clearly.' }
+    expect((await getSettingsState()).noteTitleTimestampEnabled).toBe(false)
+    await saveSettings({ ...request, noteTitleTimestampEnabled: true })
+    expect((await getSettingsState()).noteTitleTimestampEnabled).toBe(true)
+    expect((await saveSettings(request)).noteTitleTimestampEnabled).toBe(true)
+    expect((await saveSettings({ ...request, noteTitleTimestampEnabled: false })).noteTitleTimestampEnabled).toBe(false)
+    await expect(saveSettings({ ...request, noteTitleTimestampEnabled: 'true' })).rejects.toThrow('must be boolean')
+  })
+  it('persists the normalized endpoint across reloads and unrelated saves', async () => {
+    const request = { modelProvider: 'ollama', modelName: 'qwen3:8b', defaultAnswerLanguage: 'zh', systemPrompt: 'Answer clearly.' }
+    expect(await getConfiguredOllamaBaseUrl()).toBe('http://127.0.0.1:11434')
+    await saveSettings({ ...request, ollamaBaseUrl: ' http://192.168.1.20:11435/ ' })
+    expect(await getConfiguredOllamaBaseUrl()).toBe('http://192.168.1.20:11435')
+    await saveSettings({ ...request, modelProvider: 'openai', modelName: 'gpt-4.1' })
+    expect((await getSettingsState()).ollamaBaseUrl).toBe('http://192.168.1.20:11435')
+    const path = join(app.getPath('userData'), 'settings.json')
+    const before = await readFile(path, 'utf8')
+    await expect(saveSettings({ ...request, ollamaBaseUrl: 'https://user:secret@host' })).rejects.toThrow('Ollama 服务地址')
+    expect(await readFile(path, 'utf8')).toBe(before)
+  })
+
   beforeEach(async () => {
     const settingsDirectory = await mkdtemp(join(tmpdir(), 'english-ask-settings-'))
     vi.mocked(app.getPath).mockReturnValue(settingsDirectory)
@@ -33,6 +56,18 @@ describe('settings model provider', () => {
   })
 
   afterEach(() => vi.unstubAllEnvs())
+
+  it('persists Ollama without a key and preserves unrelated cloud credentials', async () => {
+    const request = { defaultAnswerLanguage: 'zh', systemPrompt: 'Answer clearly.' }
+    await saveSettings({ ...request, modelProvider: 'openai', modelName: 'gpt-4.1', apiKey: 'saved-cloud-key' })
+    vi.stubEnv('OPENROUTER_API_KEY', 'environment-cloud-key')
+    const state = await saveSettings({ ...request, modelProvider: 'ollama', modelName: 'qwen3:8b', apiKey: 'must-not-save' })
+    expect(state).toMatchObject({ modelProvider: 'ollama', modelName: 'qwen3:8b', hasApiKey: false,
+      apiKeySource: 'missing', providerSettings: { ollama: { modelName: 'qwen3:8b', hasApiKey: false }, openai: { hasApiKey: true } } })
+    const stored = JSON.parse(await readFile(join(app.getPath('userData'), 'settings.json'), 'utf8'))
+    expect(stored.apiKeys).toEqual({ openai: 'saved-cloud-key' })
+    expect((await getSettingsState()).modelName).toBe('qwen3:8b')
+  })
 
   it('persists Jev independently, hides its key and preserves it across unrelated or blank saves', async () => {
     const request = { modelProvider: 'openai', modelName: 'gpt-4.1-mini', defaultAnswerLanguage: 'zh', systemPrompt: 'Answer clearly.' }

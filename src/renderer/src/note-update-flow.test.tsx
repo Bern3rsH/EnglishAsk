@@ -27,7 +27,7 @@ beforeEach(async () => {
   formatAskNote.mockResolvedValue({ ok: true, data: { markdown: 'My merged note' } })
   saveNote.mockImplementation(async (request) => {
     if (request.expectedMarkdown !== undefined && note.markdown !== request.expectedMarkdown) {
-      return { ok: false, error: '笔记内容已变更' }
+      return { ok: false, error: 'Note 内容已变更' }
     }
     note = { ...note, markdown: request.restorePrevious ? 'My original note' : request.markdown,
       canUndoUpdate: !request.restorePrevious }

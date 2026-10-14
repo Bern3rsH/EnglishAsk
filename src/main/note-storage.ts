@@ -232,7 +232,8 @@ export const listNotes = async (notesDirectory?: string): Promise<NoteSummary[]>
 export const createNote = async (
   notesDirectory?: string,
   initialMarkdownValue: unknown = '',
-  preferredNameValue: unknown = DEFAULT_NOTE_NAME
+  preferredNameValue: unknown = DEFAULT_NOTE_NAME,
+  timestampEnabled = false
 ): Promise<NoteDocument> => {
   const initialBody = normalizeMarkdown(initialMarkdownValue)
   const initialMarkdown = normalizeMarkdown(withNoteProvenance(initialBody, {
@@ -241,7 +242,20 @@ export const createNote = async (
     sources: readNoteProvenance(initialBody)?.sources ?? []
   }))
   const preferredNoteId = normalizeNoteName(preferredNameValue)
-  const preferredName = preferredNoteId.slice(0, -NOTE_FILE_EXTENSION.length)
+  let preferredName = preferredNoteId.slice(0, -NOTE_FILE_EXTENSION.length)
+  if (timestampEnabled) {
+    const now = new Date()
+    const timestamp = [now.getFullYear(), now.getMonth() + 1, now.getDate(), now.getHours(), now.getMinutes()]
+      .map((part, index) => String(part).padStart(index === 0 ? 4 : 2, '0')).join('')
+    const prefix = `${timestamp} `
+    const maximumTitleBytes = MAX_NOTE_FILE_NAME_BYTES - Buffer.byteLength(`${prefix}${NOTE_FILE_EXTENSION}`, 'utf8')
+    let title = ''
+    for (const character of preferredName) {
+      if (Buffer.byteLength(title + character, 'utf8') > maximumTitleBytes) break
+      title += character
+    }
+    preferredName = prefix + title
+  }
 
   return withNoteMutationLock(async () => {
     const resolvedDirectory = await resolveNotesDirectory(notesDirectory)
@@ -322,13 +336,13 @@ export const saveNote = async (
     ? undefined : normalizeMarkdown(request.expectedMarkdown)
   if ((restoring || preserving) && (expectedMarkdown === undefined ||
     typeof request.expectedDirectory !== 'string' || !request.expectedDirectory)) {
-    throw new Error('更新或撤销笔记需要原内容和存储目录，请重新打开笔记。')
+    throw new Error('更新或撤销 Note 需要原内容和存储目录，请重新打开 Note。')
   }
   const resolvedDirectory = await resolveNotesDirectory(notesDirectory)
   if (request.expectedDirectory !== undefined &&
     (typeof request.expectedDirectory !== 'string' ||
       resolve(request.expectedDirectory) !== resolve(resolvedDirectory))) {
-    throw new Error('笔记目录已变更，请重新生成预览。')
+    throw new Error('Note 目录已变更，请重新生成预览。')
   }
   const notePath = getNotePath(resolvedDirectory, noteId)
   const temporaryPath = join(resolvedDirectory, `.${randomUUID()}.tmp`)
@@ -340,12 +354,12 @@ export const saveNote = async (
 
   const currentNote = await getNote(noteId, resolvedDirectory)
   if (expectedMarkdown !== undefined && currentNote.markdown !== expectedMarkdown) {
-    throw new Error('笔记内容已变更，本次操作未保存。请重新生成预览或打开最新笔记。')
+    throw new Error('Note 内容已变更，本次操作未保存。请重新生成预览或打开最新 Note。')
   }
   if (restoring) {
     const backup = await readNoteUpdateBackup(resolvedDirectory, noteId)
     if (!backup || backup.after !== currentNote.markdown || backup.before === backup.after) {
-      throw new Error('没有可撤销的更新，或笔记在更新后已被编辑。')
+      throw new Error('没有可撤销的更新，或 Note 在更新后已被编辑。')
     }
     markdown = normalizeMarkdown(backup.before)
   }
@@ -376,7 +390,7 @@ export const saveNote = async (
     })
     // External editors do not participate in the app's mutation queue.
     if (expectedMarkdown !== undefined && await readFile(notePath, 'utf8') !== expectedMarkdown) {
-      throw new Error('笔记内容已变更，本次操作未保存。请重新生成预览。')
+      throw new Error('Note 内容已变更，本次操作未保存。请重新生成预览。')
     }
     await rename(temporaryPath, notePath)
   } catch (error) {

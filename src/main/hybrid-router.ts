@@ -1,11 +1,11 @@
-import type { JevRoutingConfiguration } from '../shared/jev'
+import { JEV_ROUTING_MIN_CONFIDENCE, type JevRoutingConfiguration } from '../shared/jev'
 import { CARD_MODULE_RULES } from '../shared/card-modules'
 import type { RouterClassification, RouterRoutingInfo, RouterInputType, RouterStructureType } from '../shared/router'
 import { classifyWithJev, JEV_ROUTER_FIELDS, type JevRouterResult } from './jev-router'
 import { classifyEnglishRequest, type ClassifyEnglishRequestOptions } from './router-classifier'
 
 // A conservative initial gate, not a calibrated accuracy guarantee.
-export const JEV_ROUTING_MIN_CONFIDENCE = 0.8
+export { JEV_ROUTING_MIN_CONFIDENCE } from '../shared/jev'
 const BARE_WORD_PATTERN = /^[a-z]+(?:[-'][a-z]+)*$/i
 // Certainty of this deterministic routing policy, not a claim about spelling or meaning.
 const RULE_ROUTING_CONFIDENCE = 1
@@ -26,9 +26,9 @@ export const canUseJevLabels = (result: JevRouterResult): boolean => {
 }
 
 export const classifyWithHybridRouter = async (
-  options: Omit<ClassifyEnglishRequestOptions, 'requiredLabels'> & { jevApiKey?: string; jevConfiguration?: JevRoutingConfiguration; onRouting?: (info: RouterRoutingInfo) => void }
+  options: Omit<ClassifyEnglishRequestOptions, 'requiredLabels'> & { jevApiKey?: string; jevConfiguration?: JevRoutingConfiguration; onRouting?: (info: RouterRoutingInfo) => void; completeAcceptedLabels?: typeof classifyEnglishRequest }
 ): Promise<RouterClassification> => {
-  const { jevApiKey, jevConfiguration, onRouting, ...originalOptions } = options
+  const { jevApiKey, jevConfiguration, onRouting, completeAcceptedLabels, ...originalOptions } = options
   const configuration = jevConfiguration ?? (jevApiKey ? { channel: 'openrouter' as const, apiKey: jevApiKey } : undefined)
   options.signal?.throwIfAborted()
   const target = options.request.question.trim()
@@ -49,7 +49,7 @@ export const classifyWithHybridRouter = async (
       options.signal?.throwIfAborted()
       if (canUseJevLabels(result)) {
         const confidence = Math.min(...JEV_ROUTER_FIELDS.map(field => result.confidence[field]))
-        const classification = await classifyEnglishRequest({ ...originalOptions, requiredLabels: result.labels })
+        const classification = await (completeAcceptedLabels ?? classifyEnglishRequest)({ ...originalOptions, requiredLabels: result.labels })
         options.signal?.throwIfAborted()
         console.info('EnglishAsk routing source', { source: 'jev-assisted',
           jevElapsedMs: result.elapsedMs, confidence })

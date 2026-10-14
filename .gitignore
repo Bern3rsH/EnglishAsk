@@ -8,3 +8,37 @@ release/
 .env.*
 !.env.example
 *.tsbuildinfo
+
+# Local learning notes, plans and experiment reports
+/implementation-plan.mdc
+/jev-router-comparison.md
+/docs/*learning*.md
+/docs/*experiment*.md
+/docs/*comparison*.md
+/docs/rag-evaluation.md
+/docs/*live-result*.json
+/docs/learning/
+/docs/experiments/
+/learning/
+/experiments/
+
+# Standalone exercises and experiment runners (keep local copies)
+/src/main/learning/
+/src/main/jev-end-to-end-live.test.ts
+/scripts/rag-keyword-demo*
+/scripts/rag-keyword-ranking*
+/scripts/rag-embedding-demo*
+/scripts/rag-embedding-direct-demo*
+/scripts/jev-e2e-report*
+/scripts/jev-merged-report*
+/scripts/local-embedding-app-check-entry.ts
+/scripts/verify-local-embedding*
+
+# Generated experiment outputs; retain the dataset used by regression tests
+/tests/fixtures/routing/
+/tests/fixtures/rag/*.json
+!/tests/fixtures/rag/dataset.json
+/tests/fixtures/rag/*.png
+
+# Other scripts/rag-* modules are runtime dependencies or regression helpers.
+# Keep them and tests/fixtures/rag/notes/ available in fresh checkouts.

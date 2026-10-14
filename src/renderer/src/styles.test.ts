@@ -5,6 +5,10 @@ import { describe, expect, it } from 'vitest'
 const stylesPath = fileURLToPath(new URL('./styles.css', import.meta.url))
 
 describe('Asks and Notes 列表 styles', () => {
+  it('keeps Anki model dropdown appearance unchanged when focused', async () => {
+    const styles = await readFile(stylesPath, 'utf8')
+    expect(styles).toMatch(/\.ankiModelSelection select:focus,\s*\.ankiModelSelection select:focus-visible\s*{[^}]*outline: none;[^}]*border-color: #383838;[^}]*box-shadow: none;/)
+  })
   it('keeps the provider panel anchored independently of submenu content and loading', async () => {
     const styles = await readFile(stylesPath, 'utf8')
     expect(styles).toMatch(/\.composerProviderMenu\s*{[^}]*align-self:\s*end;[^}]*max-height:\s*100%/s)

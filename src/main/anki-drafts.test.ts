@@ -11,6 +11,7 @@ import type { AnkiDraftSet } from '../shared/anki'
 
 vi.mock('./provider-adapters', () => ({ generateProviderText: vi.fn() }))
 vi.mock('./settings', () => ({
+  getConfiguredOllamaBaseUrl: vi.fn().mockResolvedValue('http://127.0.0.1:11434'),
   getConfiguredModelProvider: vi.fn().mockResolvedValue('deepseek'),
   getConfiguredProviderModel: vi.fn().mockResolvedValue('test-model'),
   getStoredProviderApiKey: vi.fn().mockResolvedValue('test-key'),
@@ -33,6 +34,15 @@ beforeEach(() => {
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))) })
 
 describe('Note to Anki drafts', () => {
+  it('loads source metadata and saves a manual first card without AI', async () => {
+    const { request, directory, note } = await fixture()
+    const loaded = await loadAnkiDrafts(request, directory)
+    expect(loaded.source).toMatchObject({ sourceTitle: note.title, sourceNoteId: readNoteProvenance(note.markdown)!.note_id })
+    const drafts = { version: 1, ...loaded.source, revision: 'manual', cards: [{ ...card, id: 'manual-card', selected: true }] }
+    const saved = await saveAnkiDrafts({ ...request, drafts, expectedDraftRevision: null }, directory)
+    expect((await loadAnkiDrafts(request, directory)).drafts).toEqual(saved)
+    expect(generateProviderText).not.toHaveBeenCalled()
+  })
   it('generates from Note body only, assigns identities and leaves the Note unchanged', async () => {
     const { request, directory, note } = await fixture()
     const drafts = await generateAnkiDrafts(request, directory)
@@ -44,7 +54,7 @@ describe('Note to Anki drafts', () => {
     expect(options.prompt).not.toContain('private')
     expect(options.prompt).not.toContain('english_ask')
     expect(await readFile(join(directory, note.id), 'utf8')).toBe(note.markdown)
-    expect(await loadAnkiDrafts(request, directory)).toEqual({ drafts: null, stale: false })
+    expect(await loadAnkiDrafts(request, directory)).toMatchObject({ drafts: null, stale: false })
   })
 
   it('deduplicates generated questions and never trusts generated IDs', async () => {
@@ -65,7 +75,7 @@ describe('Note to Anki drafts', () => {
     expect(saved.revision).not.toBe(drafts.revision)
     const renamed = await renameNote({ id: note.id, name: 'Renamed' }, directory)
     const loaded = await loadAnkiDrafts({ ...request, noteId: renamed.id }, directory)
-    expect(loaded).toEqual({ drafts: saved, stale: false })
+    expect(loaded).toMatchObject({ drafts: saved, stale: false })
     expect(await readdir(directory)).toContain('.englishask-anki')
     expect((await getNote(renamed.id, directory)).markdown).toBe(note.markdown)
   })
@@ -76,7 +86,7 @@ describe('Note to Anki drafts', () => {
     const saved = await saveAnkiDrafts({ ...request, drafts, expectedDraftRevision: null }, directory)
     const changed = await saveNote({ id: note.id, markdown: 'Different knowledge' }, directory)
     const nextRequest = { ...request, expectedMarkdown: changed.markdown }
-    expect(await loadAnkiDrafts(nextRequest, directory)).toEqual({ drafts: saved, stale: true })
+    expect(await loadAnkiDrafts(nextRequest, directory)).toMatchObject({ drafts: saved, stale: true })
     await expect(saveAnkiDrafts({ ...nextRequest, drafts: saved, expectedDraftRevision: saved.revision }, directory)).rejects.toThrow('Note 已更新')
   })
 
@@ -146,6 +156,14 @@ describe('Note to Anki drafts', () => {
     vi.mocked(getStoredProviderApiKey).mockResolvedValue(undefined)
     await expect(generateAnkiDrafts(request, other)).rejects.toThrow('API Key')
     expect(generateProviderText).not.toHaveBeenCalled()
+  })
+
+  it('generates Ollama Anki cards without a credential', async () => {
+    const { request, directory } = await fixture()
+    vi.mocked(getStoredProviderApiKey).mockResolvedValue(undefined)
+    await generateAnkiDrafts({ ...request, modelProvider: 'ollama', modelName: 'qwen3:8b' }, directory)
+    expect(generateProviderText).toHaveBeenLastCalledWith(expect.objectContaining({ modelProvider: 'ollama', apiKey: '' }))
+    expect(getStoredProviderApiKey).not.toHaveBeenCalled()
   })
 
   it('does not overwrite corrupt saved drafts or follow a symlink draft directory', async () => {

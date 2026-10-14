@@ -54,6 +54,7 @@ beforeEach(async () => {
     const channelKeys = { ...settings.jevChannelKeys,
       [channel]: request.removeJevApiKey ? false : Boolean(request.jevApiKey || settings.jevChannelKeys?.[channel]) }
     settings = { ...settings, modelProvider: request.modelProvider, modelName: request.modelName,
+      ollamaBaseUrl: request.ollamaBaseUrl ?? settings.ollamaBaseUrl,
       jevChannel: channel, jevChannelKeys: channelKeys,
       jevCloudflareAccountId: request.jevCloudflareAccountId ?? settings.jevCloudflareAccountId,
       jevRoutingEnabled: request.jevRoutingEnabled ?? settings.jevRoutingEnabled,
@@ -95,11 +96,64 @@ it('shows read-only prompt settings in development', async () => {
   expect(host.querySelectorAll('.promptPreview').length).toBeGreaterThan(0)
 })
 
+it('refreshes and saves Ollama models without an API key', async () => {
+  listProviderModels.mockResolvedValue({ ok: true, data: ['qwen3:8b'] })
+  await selectProvider('Ollama（本地）')
+  expect(host.querySelector('#providerApiKey')).toBeNull()
+  expect(query<HTMLInputElement>('[aria-label="Ollama 服务地址"]').value).toBe('http://127.0.0.1:11434')
+  const refresh = query<HTMLButtonElement>('[aria-label="刷新模型列表"]')
+  expect(refresh.disabled).toBe(false)
+  await act(() => refresh.click())
+  expect(listProviderModels).toHaveBeenLastCalledWith({ modelProvider: 'ollama', ollamaBaseUrl: 'http://127.0.0.1:11434' })
+  expect(model().textContent).toContain('qwen3:8b')
+  await clickText('保存设置')
+  expect(saveSettings).toHaveBeenLastCalledWith(expect.objectContaining({ modelProvider: 'ollama', modelName: 'qwen3:8b', apiKey: '' }))
+})
+
+it('handles Ollama empty lists and connection failures without showing invented models', async () => {
+  await selectProvider('Ollama（本地）')
+  listProviderModels.mockResolvedValue({ ok: true, data: [] })
+  await act(() => query<HTMLButtonElement>('[aria-label="刷新模型列表"]').click())
+  expect(host.textContent).toContain('没有可用的纯文本模型')
+  expect([...host.querySelectorAll('button')].find(button => button.textContent === '保存设置')?.disabled).toBe(true)
+  listProviderModels.mockResolvedValue({ ok: false, error: '无法连接 Ollama' })
+  await act(() => query<HTMLButtonElement>('[aria-label="刷新模型列表"]').click())
+  expect(host.textContent).toContain('无法连接 Ollama')
+})
+
+it('invalidates old models on endpoint edits, refreshes the draft and reloads the saved address', async () => {
+  await selectProvider('Ollama（本地）')
+  listProviderModels.mockResolvedValue({ ok: true, data: ['qwen3:8b'] })
+  await act(() => query<HTMLButtonElement>('[aria-label="刷新模型列表"]').click())
+  const address = () => query<HTMLInputElement>('[aria-label="Ollama 服务地址"]')
+  expect(address().readOnly).toBe(false)
+  await act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(address(), 'http://192.168.1.20:11435')
+    address().dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  expect(model().textContent).not.toContain('qwen3:8b')
+  expect([...host.querySelectorAll('button')].find(button => button.textContent === '保存设置')?.disabled).toBe(true)
+  listProviderModels.mockResolvedValueOnce({ ok: false, error: '无法连接 Ollama' })
+  await act(() => query<HTMLButtonElement>('[aria-label="刷新模型列表"]').click())
+  expect(saveSettings).not.toHaveBeenCalled()
+  expect(address().value).toBe('http://192.168.1.20:11435')
+  listProviderModels.mockResolvedValueOnce({ ok: true, data: ['remote-model'] })
+  await act(() => query<HTMLButtonElement>('[aria-label="刷新模型列表"]').click())
+  expect(listProviderModels).toHaveBeenLastCalledWith({ modelProvider: 'ollama', ollamaBaseUrl: 'http://192.168.1.20:11435' })
+  await clickText('保存设置')
+  expect(saveSettings).toHaveBeenLastCalledWith(expect.objectContaining({ ollamaBaseUrl: 'http://192.168.1.20:11435', modelName: 'remote-model' }))
+  await act(() => root.unmount())
+  root = createRoot(host)
+  await act(() => root.render(<App />))
+  await clickText('设置')
+  expect(address().value).toBe('http://192.168.1.20:11435')
+})
+
 it('hides prompt navigation and previews in production without changing saved prompts', async () => {
   vi.stubEnv('DEV', false)
   await act(() => root.render(<App />))
   expect([...host.querySelectorAll('.settingsSidebarNav button')].map(item => item.textContent?.trim()))
-    .toEqual(['模型', 'Jev（可选）', 'Notes'])
+    .toEqual(['模型', 'Jev（可选）', 'Notes', '关于与更新'])
   expect(host.querySelector('[aria-label="提示词"]')).toBeNull()
   expect(host.querySelector('[aria-label="系统提示词预览"]')).toBeNull()
   expect(host.querySelector('.promptPreview')).toBeNull()
@@ -118,7 +172,7 @@ it('falls back to model settings when a selected prompt section is unavailable',
 
 it('saves and reloads Jev independently and preserves its saved key on blank saves', async () => {
   expect(host.querySelector('#jevApiKey')).toBeNull()
-  expect([...host.querySelectorAll('.settingsSidebarNav button')].map(item => item.textContent?.trim())).toEqual(['模型', 'Jev（可选）', '提示词', 'Notes'])
+  expect([...host.querySelectorAll('.settingsSidebarNav button')].map(item => item.textContent?.trim())).toEqual(['模型', 'Jev（可选）', '提示词', 'Notes', '关于与更新'])
   await clickText('Jev（可选）')
   expect(host.querySelector('#providerApiKey')).toBeNull()
   const toggle = () => query<HTMLInputElement>('[aria-label="启用 Jev 模型"]')
@@ -505,4 +559,21 @@ it.each(['model', 'jev'])('keeps %s password dot count unchanged after saving an
   expect(key().value.length).toBe(typedKey.length)
   await clickText('保存设置')
   expect(saveSettings.mock.lastCall?.[0][page === 'jev' ? 'jevApiKey' : 'apiKey']).toBe('')
+})
+
+it('opens About in production and checks updates without saving model settings', async () => {
+  vi.stubEnv('DEV', false)
+  const checkAppUpdate = vi.fn().mockResolvedValue({ status: 'available', currentVersion: '0.1.2', latestVersion: '0.2.0', releaseNotes: '手写更新' })
+  Object.assign(window.englishAsk!, {
+    getAppVersion: vi.fn().mockResolvedValue({ currentVersion: '0.1.2', isPackaged: true }),
+    checkAppUpdate,
+    openAppDownload: vi.fn().mockResolvedValue({ ok: true })
+  })
+  await clickText('关于与更新')
+  expect(host.querySelector('[aria-label="关于与更新"]')).not.toBeNull()
+  expect(host.textContent).toContain('当前版本：0.1.2')
+  await clickText('检查更新')
+  expect(host.textContent).toContain('手写更新')
+  expect(checkAppUpdate).toHaveBeenCalledOnce()
+  expect(saveSettings).not.toHaveBeenCalled()
 })

@@ -17,6 +17,13 @@ describe('macOS prerelease packaging', () => {
     expect(manifest.scripts['verify:package']).toBe('node scripts/verify-package.mjs')
   })
 
+  it('ships the pinned native embedding runtime without bundling model weights', () => {
+    expect(manifest.dependencies['node-llama-cpp']).toBe('3.22.1')
+    expect(manifest.devDependencies['node-llama-cpp']).toBeUndefined()
+    expect(config.asarUnpack).toContain('node_modules/@node-llama-cpp/**/*')
+    expect(config.asarUnpack).toContain('node_modules/node-llama-cpp/bins/**/*')
+  })
+
   it('includes only compiled application files and excludes environment files', () => {
     expect(config.files.filter((entry: string) => !entry.startsWith('!')))
       .toEqual(['out/**/*', 'package.json'])

@@ -7,7 +7,7 @@ export const PRIMARY_SIDEBAR_WIDTH_PX = 156
 export const MIN_DETAIL_WORKSPACE_WIDTH_PX = 360
 
 export type AppWorkspace = 'asks' | 'notes'
-export type SettingsSection = 'models' | 'jev' | 'prompts' | 'storage'
+export type SettingsSection = 'models' | 'jev' | 'prompts' | 'storage' | 'about'
 
 export const getSidebarNavItemClassName = (isActive: boolean): string => {
   return isActive ? 'sidebarNavItem sidebarNavItem-active' : 'sidebarNavItem'

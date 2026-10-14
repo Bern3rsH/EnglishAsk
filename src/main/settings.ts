@@ -14,6 +14,7 @@ import {
   type SettingsState
 } from '../shared/ai'
 import { normalizeDefaultAnswerLanguage } from './answer-language'
+import { normalizeOllamaBaseUrl } from '../shared/ollama-url'
 import { DEFAULT_GEMINI_MODEL } from './ai-request'
 import { isGeminiModel, normalizeGeminiModel } from './model'
 import { isModelProvider, normalizeModelProvider } from './model-provider'
@@ -28,6 +29,8 @@ const SETTINGS_FILE_MODE = 0o600
 const DEFAULT_NOTES_DIRECTORY_NAME = 'notes'
 
 interface StoredSettings {
+  noteTitleTimestampEnabled?: boolean
+  ollamaBaseUrl?: string
   jevChannel?: JevChannel
   jevApiKeys?: Partial<Record<JevChannel, string>>
   jevCloudflareAccountId?: string
@@ -154,10 +157,11 @@ const normalizeProviderModels = (
 }
 
 const getDefaultProviderModel = (modelProvider: ModelProvider): ProviderModel => {
-  return DEFAULT_MODEL_OPTIONS_BY_PROVIDER[modelProvider][0]
+  return DEFAULT_MODEL_OPTIONS_BY_PROVIDER[modelProvider][0] ?? ''
 }
 
 export const getEnvironmentProviderApiKey = (modelProvider: ModelProvider): string | undefined => {
+  if (modelProvider === 'ollama') return undefined
   if (modelProvider === 'google-gemini') {
     return process.env.GOOGLE_GENERATIVE_AI_API_KEY
   }
@@ -209,6 +213,8 @@ const readStoredSettings = async (): Promise<StoredSettings> => {
     const parsedSettings = JSON.parse(rawSettings) as StoredSettings
 
     return {
+      ollamaBaseUrl: parsedSettings.ollamaBaseUrl === undefined
+        ? undefined : normalizeOllamaBaseUrl(parsedSettings.ollamaBaseUrl),
       jevChannel: isJevChannel(parsedSettings.jevChannel) ? parsedSettings.jevChannel : undefined,
       jevApiKeys: parsedSettings.jevApiKeys || parsedSettings.jevApiKey
         ? normalizeJevApiKeys(parsedSettings.jevApiKeys, parsedSettings.jevApiKey) : undefined,
@@ -234,7 +240,9 @@ const readStoredSettings = async (): Promise<StoredSettings> => {
       systemPrompt: normalizeStoredSystemPrompt(parsedSettings.systemPrompt),
       noteStorageDirectory: normalizeStoredNoteStorageDirectory(
         parsedSettings.noteStorageDirectory
-      )
+      ),
+      noteTitleTimestampEnabled: typeof parsedSettings.noteTitleTimestampEnabled === 'boolean'
+        ? parsedSettings.noteTitleTimestampEnabled : undefined
     }
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
@@ -361,6 +369,9 @@ export const getConfiguredDefaultAnswerLanguage = async (): Promise<DefaultAnswe
   return settings.defaultAnswerLanguage ?? normalizeDefaultAnswerLanguage(undefined)
 }
 
+export const getConfiguredOllamaBaseUrl = async (): Promise<string> =>
+  normalizeOllamaBaseUrl((await readStoredSettings()).ollamaBaseUrl)
+
 export const getSettingsState = async (): Promise<SettingsState> => {
   const storedSettings = await readStoredSettings()
   const modelProvider = storedSettings.modelProvider ?? normalizeModelProvider(undefined)
@@ -391,6 +402,8 @@ export const getSettingsState = async (): Promise<SettingsState> => {
   const noteStorageDirectory = await getConfiguredNoteStorageDirectory()
   const noteStorageSource = await getNoteStorageSource()
   const baseSettings = {
+    noteTitleTimestampEnabled: storedSettings.noteTitleTimestampEnabled ?? false,
+    ollamaBaseUrl: normalizeOllamaBaseUrl(storedSettings.ollamaBaseUrl),
     jevRoutingEnabled: storedSettings.jevRoutingEnabled ?? true,
     jevChannel: storedSettings.jevChannel ?? 'openrouter',
     jevChannelKeyLengths: Object.fromEntries(Object.keys(JEV_CHANNELS).map(channel =>
@@ -448,6 +461,9 @@ export const deleteProviderApiKey = async (provider: unknown): Promise<SettingsS
 
 export const saveSettings = async (request: unknown): Promise<SettingsState> => {
   assertRecord(request)
+  if (request.noteTitleTimestampEnabled !== undefined && typeof request.noteTitleTimestampEnabled !== 'boolean') {
+    throw new Error('Note title timestamp setting must be boolean.')
+  }
 
   for (const field of ['jevRoutingEnabled', 'removeJevApiKey']) {
     if (request[field] !== undefined && typeof request[field] !== 'boolean') {
@@ -472,7 +488,8 @@ export const saveSettings = async (request: unknown): Promise<SettingsState> => 
   if (request.removeJevApiKey === true) delete jevApiKeys[jevChannel]
   else if (jevApiKey) jevApiKeys[jevChannel] = jevApiKey
   const modelProvider = normalizeModelProvider(request.modelProvider)
-  const apiKey = normalizeOptionalGeminiApiKey(request.apiKey ?? request.geminiApiKey)
+  const apiKey = modelProvider === 'ollama' ? undefined
+    : normalizeOptionalGeminiApiKey(request.apiKey ?? request.geminiApiKey)
   const modelName =
     modelProvider === 'google-gemini'
       ? normalizeGeminiModel(request.modelName ?? request.geminiModel)
@@ -488,6 +505,10 @@ export const saveSettings = async (request: unknown): Promise<SettingsState> => 
     [modelProvider]: modelName
   }
   const nextSettings: StoredSettings = {
+    noteTitleTimestampEnabled: typeof request.noteTitleTimestampEnabled === 'boolean'
+      ? request.noteTitleTimestampEnabled : existingSettings.noteTitleTimestampEnabled,
+    ollamaBaseUrl: modelProvider === 'ollama' && request.ollamaBaseUrl !== undefined
+      ? normalizeOllamaBaseUrl(request.ollamaBaseUrl) : existingSettings.ollamaBaseUrl,
     jevRoutingEnabled: typeof request.jevRoutingEnabled === 'boolean'
       ? request.jevRoutingEnabled : existingSettings.jevRoutingEnabled,
     jevChannel,

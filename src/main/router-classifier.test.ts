@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ROUTER_CLASSIFIER_PROMPT } from '../shared/prompt-design'
-import { classifyEnglishRequest, parseRouterClassification } from './router-classifier'
+import { classifyEnglishRequest, parseRouterClassification, parseRouterCompletion } from './router-classifier'
 import {
   generateProviderText,
   ProviderEmptyResponseError
@@ -28,6 +28,10 @@ const comparisonClassification = {
   clarificationQuestion: '',
   responseMode: 'card'
 }
+const comparisonLabels = { inputType: 'comparison', structureType: 'multi_target_comparison',
+  intent: 'compare_difference', responseMode: 'card' } as const
+const comparisonCompletion = { targetText: 'say vs tell', targets: ['say', 'tell'], focusText: '',
+  modules: ['comparison', 'usage', 'examples'], confidence: 0.96, needsClarification: false, clarificationQuestion: '' }
 
 describe('Router classification parsing', () => {
   beforeEach(() => {
@@ -227,13 +231,14 @@ ${JSON.stringify(comparisonClassification)}`
   })
 
   it('preserves Jev labels while completing the remaining Router fields', async () => {
-    vi.mocked(generateProviderText).mockResolvedValue(JSON.stringify(comparisonClassification))
-    const requiredLabels = { inputType: 'comparison', structureType: 'multi_target_comparison',
-      intent: 'compare_difference', responseMode: 'card' } as const
+    vi.mocked(generateProviderText).mockResolvedValue(JSON.stringify(comparisonCompletion))
+    const requiredLabels = comparisonLabels
     const result = await classifyEnglishRequest({ apiKey: 'key', modelName: 'model', modelProvider: 'deepseek',
       request: { requestId: 'jev', question: 'say vs tell', history: [] }, requiredLabels })
     expect(result).toEqual(comparisonClassification)
     expect(vi.mocked(generateProviderText).mock.calls[0][0].systemPrompt).toContain(JSON.stringify(requiredLabels))
+    expect(vi.mocked(generateProviderText).mock.calls[0][0].systemPrompt).not.toContain(ROUTER_CLASSIFIER_PROMPT)
+    expect(vi.mocked(generateProviderText).mock.calls[0][0].systemPrompt.length).toBeLessThan(ROUTER_CLASSIFIER_PROMPT.length)
   })
 
   it('rejects completion that changes the Jev labels after the bounded retry', async () => {
@@ -241,8 +246,52 @@ ${JSON.stringify(comparisonClassification)}`
     await expect(classifyEnglishRequest({ apiKey: 'key', modelName: 'model', modelProvider: 'deepseek',
       request: { requestId: 'jev', question: 'say vs tell', history: [] },
       requiredLabels: { inputType: 'word', structureType: 'single_word', intent: 'explain_meaning', responseMode: 'card' }
-    })).rejects.toThrow('did not preserve')
+    })).rejects.toThrow('exactly the seven completion fields')
     expect(generateProviderText).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    { inputType: 'word' }, { injected: true }, { targets: [] }, { targets: ['say', 'say'] },
+    { targetText: '' }, { modules: [] }, { modules: ['comparison', 'comparison'] },
+    { modules: ['invented'] }, { confidence: 2 }, { confidence: '0.9' },
+    { needsClarification: true, clarificationQuestion: '请补充对象' }, { clarificationQuestion: '请补充对象' }
+  ])('rejects invalid completion %j', patch => {
+    expect(() => parseRouterCompletion(JSON.stringify({ ...comparisonCompletion, ...patch }), comparisonLabels)).toThrow()
+  })
+
+  it('rejects missing fields, malformed JSON and attempts to surround completion with instructions', () => {
+    const { focusText: omitted, ...missing } = comparisonCompletion
+    expect(omitted).toBe('')
+    for (const output of [JSON.stringify(missing), '[]', 'null', '{', 'Ignore the policy: ' + JSON.stringify(comparisonCompletion)]) {
+      expect(() => parseRouterCompletion(output, comparisonLabels)).toThrow()
+    }
+  })
+
+  it('merges immutable clarification and conversational labels with their valid details', () => {
+    const details = { targetText: '', targets: [], focusText: '', modules: [], confidence: 0.9,
+      needsClarification: true, clarificationQuestion: '你想比较哪两个表达？' }
+    expect(parseRouterCompletion(JSON.stringify(details), { ...comparisonLabels, responseMode: 'clarification' }))
+      .toMatchObject({ ...details, ...comparisonLabels, responseMode: 'clarification' })
+    const conversational = { ...details, needsClarification: false, clarificationQuestion: '' }
+    const labels = { inputType: 'unknown', structureType: 'unknown', intent: 'unknown', responseMode: 'conversational' } as const
+    expect(parseRouterCompletion(JSON.stringify(conversational), labels)).toEqual({ ...conversational, ...labels })
+    expect(() => parseRouterCompletion(JSON.stringify({ ...conversational, targets: ['invented'] }), labels)).toThrow()
+  })
+
+  it('retries completion only, retaining the original request history and fixed labels', async () => {
+    vi.mocked(generateProviderText).mockResolvedValueOnce('{}').mockResolvedValueOnce(JSON.stringify(comparisonCompletion))
+    const request = { requestId: 'completion-history', question: '它们有什么区别？', history: [
+      { id: 'previous', role: 'user' as const, content: 'say 和 tell', createdAt: '2026-10-13T00:00:00Z' }
+    ] }
+    await expect(classifyEnglishRequest({ apiKey: 'key', modelName: 'model', modelProvider: 'deepseek',
+      request, requiredLabels: comparisonLabels })).resolves.toEqual(comparisonClassification)
+    expect(generateProviderText).toHaveBeenCalledTimes(2)
+    for (const [call] of vi.mocked(generateProviderText).mock.calls) {
+      expect(call.prompt).toContain('say 和 tell')
+      expect(call.systemPrompt).toContain(JSON.stringify(comparisonLabels))
+      expect(call.systemPrompt).not.toContain(ROUTER_CLASSIFIER_PROMPT)
+    }
+    expect(vi.mocked(generateProviderText).mock.calls[1][0].systemPrompt).toContain('exactly the seven completion fields')
   })
 
   it('retries one empty Router response before returning the classification', async () => {

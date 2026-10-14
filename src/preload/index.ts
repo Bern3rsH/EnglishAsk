@@ -1,4 +1,7 @@
+import { APP_UPDATE_CHANNELS, type AppUpdateBridge } from '../shared/app-update'
+import { EMBEDDING_CHANNELS, type EmbeddingResult } from '../shared/embedding'
 import { contextBridge, ipcRenderer } from 'electron'
+import { OPEN_NOTE_ANSWER_SOURCE_CHANNEL, type NoteAnswerSource } from '../shared/rag'
 import { EXPORT_ANKI_CARDS_CHANNEL, type ExportAnkiCardsRequest, type ExportedAnkiCards, GENERATE_ANKI_DRAFTS_CHANNEL, LOAD_ANKI_DRAFTS_CHANNEL, SAVE_ANKI_DRAFTS_CHANNEL,
   type GenerateAnkiDraftsRequest, type AnkiNoteRequest, type SaveAnkiDraftsRequest, type AnkiResult, type AnkiDraftSet, type LoadedAnkiDrafts } from '../shared/anki'
 import {
@@ -50,11 +53,20 @@ import {
 } from '../shared/ai'
 
 contextBridge.exposeInMainWorld('englishAsk', {
+  getAppVersion: (): ReturnType<AppUpdateBridge['getAppVersion']> => ipcRenderer.invoke(APP_UPDATE_CHANNELS.info),
+  checkAppUpdate: (): ReturnType<AppUpdateBridge['checkAppUpdate']> => ipcRenderer.invoke(APP_UPDATE_CHANNELS.check),
+  openAppDownload: (): ReturnType<AppUpdateBridge['openAppDownload']> => ipcRenderer.invoke(APP_UPDATE_CHANNELS.download),
+  getEmbeddingStatus: (): Promise<EmbeddingResult> => ipcRenderer.invoke(EMBEDDING_CHANNELS.status),
+  downloadEmbeddingModel: (): Promise<EmbeddingResult> => ipcRenderer.invoke(EMBEDDING_CHANNELS.download),
+  cancelEmbeddingDownload: (): Promise<EmbeddingResult> => ipcRenderer.invoke(EMBEDDING_CHANNELS.cancel),
+  setEmbeddingEnabled: (enabled: boolean): Promise<EmbeddingResult> => ipcRenderer.invoke(EMBEDDING_CHANNELS.enabled, enabled),
   exportAnkiCards: (request: ExportAnkiCardsRequest): Promise<AnkiResult<ExportedAnkiCards>> => ipcRenderer.invoke(EXPORT_ANKI_CARDS_CHANNEL, request),
   generateAnkiDrafts: (request: GenerateAnkiDraftsRequest): Promise<AnkiResult<AnkiDraftSet>> => ipcRenderer.invoke(GENERATE_ANKI_DRAFTS_CHANNEL, request),
   loadAnkiDrafts: (request: AnkiNoteRequest): Promise<AnkiResult<LoadedAnkiDrafts>> => ipcRenderer.invoke(LOAD_ANKI_DRAFTS_CHANNEL, request),
   saveAnkiDrafts: (request: SaveAnkiDraftsRequest): Promise<AnkiResult<AnkiDraftSet>> => ipcRenderer.invoke(SAVE_ANKI_DRAFTS_CHANNEL, request),
   platform: process.platform,
+  openNoteAnswerSource: (source: NoteAnswerSource): Promise<NoteDocumentResult> =>
+    ipcRenderer.invoke(OPEN_NOTE_ANSWER_SOURCE_CHANNEL, source),
   askEnglish: (request: AskEnglishRequest): Promise<AskEnglishResult> => {
     return ipcRenderer.invoke(ASK_ENGLISH_CHANNEL, request)
   },

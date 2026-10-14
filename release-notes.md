@@ -4,11 +4,11 @@
 发布流程会将该小节正文写入 GitHub Release；不要在版本小节内使用二级标题，分类使用三级标题。
 操作步骤见 [发布说明](docs/releases/README.md)。
 
-## v0.1.2
+## v0.1.0
 
-- 调整：macOS ad-hoc 签名关闭 Hardened Runtime，用于验证安装后启动卡住的问题。
-- 安装说明：仍未使用 Developer ID 签名或 Apple 公证；此项调整不代表已获得系统信任。
-- 已知问题：本机测试中，临时目录可正常启动，但安装到 Applications 后仍可能卡住。本版本用于进一步验证，不代表该问题已修复。
+- 首次发布 macOS Apple Silicon 预览版。
+- 支持 AI 英语问答、本地 Markdown 学习笔记、发音播放和 Anki 卡片生成与导出。
+- 完整历史说明见 https://github.com/Bern3rsH/EnglishAsk/releases/tag/v0.1.0 。
 
 ## v0.1.1
 
@@ -21,8 +21,14 @@
 - Windows x64：提供安装版 EXE、解压即用 ZIP 和便携版 EXE；未使用付费代码签名证书。
 - 更新需要手动下载安装；此流程不包含应用内自动更新。
 
-## v0.1.0
+## v0.1.2
 
-- 首次发布 macOS Apple Silicon 预览版。
-- 支持 AI 英语问答、本地 Markdown 学习笔记、发音播放和 Anki 卡片生成与导出。
-- 完整历史说明见 https://github.com/Bern3rsH/EnglishAsk/releases/tag/v0.1.0 。
+- 调整：macOS ad-hoc 签名关闭 Hardened Runtime，用于验证安装后启动卡住的问题。
+- 安装说明：仍未使用 Developer ID 签名或 Apple 公证；此项调整不代表已获得系统信任。
+- 已知问题：本机测试中，临时目录可正常启动，但安装到 Applications 后仍可能卡住。本版本用于进一步验证，不代表该问题已修复。
+
+## v1.0.0
+
+- 更新 README、安装说明和发布流程文档。
+- 接入 RAG 能力，支持针对于自己的笔记进行提问。
+- 正式发布 macOS Apple Silicon、Intel 和 Windows x64 版本。

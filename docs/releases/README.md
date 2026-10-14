@@ -25,11 +25,11 @@
 先执行 `npm ci`，然后在对应操作系统运行：
 
 ```sh
-npm run dist:mac  # macOS：ARM64 和 Intel 两套包
+npm run dist:mac  # macOS：构建当前机器架构（Apple Silicon 或 Intel）
 npm run dist:win  # Windows：x64 三种格式
 ```
 
-原有 `npm run package:mac` 仍只生成 Apple Silicon 包。以上命令只打包、校验，不上传。每个架构都会把 ASAR 解压到仓库外的临时目录，检查运行依赖能否独立导入；这不代表其他操作系统上的 GUI 启动已验证。
+原有 `npm run package:mac` 仍只生成 Apple Silicon 包。以上命令只打包、校验，不上传。GitHub 流程在 Apple Silicon、Intel 和 Windows x64 三个对应架构的 runner 上分别构建，避免按机器架构安装的原生 embedding 依赖被漏打。每个架构都会把 ASAR 解压到仓库外的临时目录，检查目标架构的原生二进制并实际加载本地 embedding 运行时；不下载模型权重。这不代表其他操作系统上的 GUI 启动已验证。
 
 ## 失败与重试
 
@@ -37,4 +37,10 @@ npm run dist:win  # Windows：x64 三种格式
 
 任一平台构建失败不会创建 Release。上传或远端校验失败时保留草稿，可重跑失败任务继续上传。已公开的同版本 Release 会被拒绝，不能覆盖；草稿里有非预期附件也会阻止公开，需检查草稿。网络或认证失败不会被当成“Release 不存在”。
 
-FenyiDic 在各平台构建时直接发布；这里保留 EnglishAsk 的打包验证，并合并到最后一个发布任务，确保两个平台和手写说明准备好后一起公开。没有引入 `electron-updater` 或修改应用功能。
+FenyiDic 在各平台构建时直接发布；这里保留 EnglishAsk 的打包验证，并合并到最后一个发布任务，确保两个平台和手写说明准备好后一起公开。应用内通过 GitHub Releases API 手动检查最新正式版，无需 `electron-updater`。
+
+## 应用内检查更新
+
+用户在 **设置 → 关于与更新 → 检查更新** 查看最新正式版及其 Release 正文，再点击 **前往下载** 打开 GitHub 最新版本页面。不会自动下载或安装。
+
+每次发布仍只需手写根目录 `release-notes.md` 中与版本号一致的小节；发布流程将正文同步到 GitHub Release，应用读取的就是这份更新说明。草稿和预发布版本不会作为最新正式版提示。开发版也可手动查询，比较的是本地 `package.json` 版本号；未发布的本地说明不会出现在远端结果中。

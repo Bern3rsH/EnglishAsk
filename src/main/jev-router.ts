@@ -74,10 +74,17 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isProbability = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
 
-// Deliberately returns labels only: this is not a complete production RouterClassification.
-export const classifyWithJev = async (options: {
-  channel?: JevChannel; accountId?: string; apiKey: string; request: AskEnglishRequest; signal?: AbortSignal; fetchImpl?: typeof fetch
-}): Promise<JevRouterResult> => {
+export interface JevChoiceQuestion {
+  type: 'choice'
+  instructions: string
+  criteria: Record<string, string>
+}
+
+// Shared transport; each caller validates its own choice contract.
+export const requestJevDecision = async (options: {
+  channel?: JevChannel; accountId?: string; apiKey: string; state: string;
+  questions: Record<string, JevChoiceQuestion>; signal?: AbortSignal; fetchImpl?: typeof fetch
+}) => {
   options.signal?.throwIfAborted()
   if (!options.apiKey.trim()) throw new Error('Jev routing requires an API key.')
   const channel = options.channel ?? 'openrouter'
@@ -89,7 +96,7 @@ export const classifyWithJev = async (options: {
     : channel === 'vercel' ? 'https://ai-gateway.vercel.sh/typesafe/v1/systemone'
       : channel === 'typesafe' ? 'https://api.typesafe.ai/v1/systemone'
         : `https://api.cloudflare.com/client/v4/accounts/${options.accountId}/ai/run`
-  const input = { state: buildEnglishAskPrompt(options.request), questions: JEV_ROUTER_QUESTIONS }
+  const input = { state: options.state, questions: options.questions }
   const body = channel === 'cloudflare'
     ? { model: JEV_CHANNELS[channel].model, input }
     : { model: JEV_CHANNELS[channel].model, ...input }
@@ -121,10 +128,21 @@ export const classifyWithJev = async (options: {
   if (!isRecord(data) || typeof data.model !== 'string' || !data.model.trim() || !isRecord(data.answers)) {
     throw new Error('Jev routing returned invalid response fields.')
   }
+  const cost = isRecord(data.usage) ? data.usage.cost : undefined
+  return { answers: data.answers, model: data.model, elapsedMs: Math.round(performance.now() - startedAt),
+    ...(typeof cost === 'number' && Number.isFinite(cost) && cost >= 0 ? { cost } : {}) }
+}
+
+// Deliberately returns labels only: this is not a complete production RouterClassification.
+export const classifyWithJev = async (options: {
+  channel?: JevChannel; accountId?: string; apiKey: string; request: AskEnglishRequest; signal?: AbortSignal; fetchImpl?: typeof fetch
+}): Promise<JevRouterResult> => {
+  const result = await requestJevDecision({ ...options, state: buildEnglishAskPrompt(options.request),
+    questions: JEV_ROUTER_QUESTIONS })
   const labels = {} as JevRouteLabels
   const confidence = {} as JevRouterResult['confidence']
   for (const field of JEV_ROUTER_FIELDS) {
-    const answer = data.answers[field]
+    const answer = result.answers[field]
     const criteria = JEV_ROUTER_QUESTIONS[field].criteria
     if (!isRecord(answer) || answer.type !== 'choice' || typeof answer.choice !== 'string' ||
         !Object.hasOwn(criteria, answer.choice) || !isProbability(answer.confidence) ||
@@ -135,9 +153,8 @@ export const classifyWithJev = async (options: {
     Object.assign(labels, { [field]: answer.choice })
     confidence[field] = answer.confidence
   }
-  const cost = isRecord(data.usage) ? data.usage.cost : undefined
-  return { labels, confidence, model: data.model, elapsedMs: Math.round(performance.now() - startedAt),
-    ...(typeof cost === 'number' && Number.isFinite(cost) && cost >= 0 ? { cost } : {}) }
+  return { labels, confidence, model: result.model, elapsedMs: result.elapsedMs,
+    ...(result.cost === undefined ? {} : { cost: result.cost }) }
 }
 
 class JevHttpError extends Error {

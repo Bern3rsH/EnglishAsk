@@ -1,5 +1,5 @@
 import type { AskEnglishRequest, ModelProvider } from '../shared/ai'
-import { ROUTER_CLASSIFIER_PROMPT } from '../shared/prompt-design'
+import { buildRouterCompletionPrompt, ROUTER_CLASSIFIER_PROMPT } from '../shared/prompt-design'
 import {
   ROUTER_INPUT_TYPES,
   ROUTER_INTENTS,
@@ -14,7 +14,7 @@ import {
   type RouterStructureType
 } from '../shared/router'
 import { buildEnglishAskPrompt } from './ai-request'
-import { compareRouterLabels, type JevRouteLabels } from './jev-router'
+import type { JevRouteLabels } from './jev-router'
 import {
   generateProviderText,
   ProviderEmptyResponseError
@@ -33,6 +33,10 @@ const JSON_CODE_FENCE_PATTERN = /^```(?:json)?\s*([\s\S]*?)\s*```$/i
 const ROUTER_OUTPUT_ATTEMPT_LIMIT = 2
 const ROUTER_RETRY_INSTRUCTION =
   'The previous Router output was empty or invalid. Return exactly one complete JSON object matching every field and enum in the schema.'
+const ROUTER_COMPLETION_FIELDS = ['targetText', 'targets', 'focusText', 'modules', 'confidence',
+  'needsClarification', 'clarificationQuestion'] as const
+const COMPLETION_RETRY_INSTRUCTION =
+  'The previous completion was empty or invalid. Return exactly the seven completion fields. Do not return or change classification labels.'
 
 export class RouterOutputError extends Error {
   constructor(message: string) {
@@ -87,7 +91,7 @@ const extractJsonObjectCandidates = (output: string): string[] => {
   return candidates
 }
 
-const assertRecord = (value: unknown): asserts value is Record<string, unknown> => {
+const assertRecord: (value: unknown) => asserts value is Record<string, unknown> = (value) => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('Router output must be a JSON object.')
   }
@@ -275,11 +279,38 @@ export const parseRouterClassification = (output: string): RouterClassification 
   throw new RouterOutputError('Router output is not valid JSON.')
 }
 
+export const parseRouterCompletion = (output: string, labels: JevRouteLabels): RouterClassification => {
+  try {
+    const completion: unknown = JSON.parse(extractJsonText(output))
+    assertRecord(completion)
+    if (Object.keys(completion).length !== ROUTER_COMPLETION_FIELDS.length ||
+      !ROUTER_COMPLETION_FIELDS.every(field => Object.hasOwn(completion, field))) {
+      throw new Error('Router completion must contain exactly the seven completion fields.')
+    }
+    // Categorical fields come only from Jev, never from generated completion text.
+    const classification = validateRouterClassification({ ...completion, ...labels })
+    if (classification.responseMode === 'card' && (!classification.targetText || !classification.modules.length)) {
+      throw new Error('Router completion must include a card target and selected modules.')
+    }
+    if (classification.responseMode !== 'clarification' && classification.clarificationQuestion) {
+      throw new Error('Router completion has an unexpected clarification question.')
+    }
+    if (classification.responseMode === 'conversational' && (classification.targetText || classification.targets.length ||
+      classification.focusText || classification.modules.length)) {
+      throw new Error('Conversational completion must not include learning targets or modules.')
+    }
+    return classification
+  } catch (error) {
+    throw new RouterOutputError(error instanceof SyntaxError ? 'Router completion is not valid JSON.'
+      : error instanceof Error ? error.message : 'Router completion is invalid.')
+  }
+}
+
 export const classifyEnglishRequest = async (
   options: ClassifyEnglishRequestOptions
 ): Promise<RouterClassification> => {
   const systemPrompt = options.requiredLabels
-    ? `${ROUTER_CLASSIFIER_PROMPT}\n\nThe routing stage has selected these categorical fields: ${JSON.stringify(options.requiredLabels)}. Keep these four fields exactly as supplied. Extract targets/focus, select modules and write any Chinese clarification question using the original request and history. Return the complete schema above.`
+    ? buildRouterCompletionPrompt(options.requiredLabels)
     : ROUTER_CLASSIFIER_PROMPT
   for (let attempt = 1; attempt <= ROUTER_OUTPUT_ATTEMPT_LIMIT; attempt += 1) {
     try {
@@ -294,14 +325,10 @@ export const classifyEnglishRequest = async (
         systemPrompt:
           attempt === 1
             ? systemPrompt
-            : `${systemPrompt}\n\n${ROUTER_RETRY_INSTRUCTION}`
+            : `${systemPrompt}\n\n${options.requiredLabels ? COMPLETION_RETRY_INSTRUCTION : ROUTER_RETRY_INSTRUCTION}`
       })
 
-      const classification = parseRouterClassification(output)
-      if (options.requiredLabels && compareRouterLabels(classification, options.requiredLabels).length) {
-        throw new RouterOutputError('Router completion did not preserve the selected categorical fields.')
-      }
-      return classification
+      return options.requiredLabels ? parseRouterCompletion(output, options.requiredLabels) : parseRouterClassification(output)
     } catch (error) {
       const shouldRetryRouterOutput =
         (error instanceof ProviderEmptyResponseError || error instanceof RouterOutputError) &&

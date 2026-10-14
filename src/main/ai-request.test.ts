@@ -16,6 +16,16 @@ const createHistoryMessage = (index: number): ChatMessage => ({
 })
 
 describe('validateAskEnglishRequest', () => {
+  it('accepts explicit Notes mode, preserves default requests and rejects unknown modes', () => {
+    const request = { requestId: 'request', question: 'used to', history: [] }
+    expect(validateAskEnglishRequest({ ...request, answerMode: 'notes' }).answerMode).toBe('notes')
+    expect(validateAskEnglishRequest({ ...request, answerMode: 'auto' }).answerMode).toBe('auto')
+    expect(validateAskEnglishRequest(request).answerMode).toBeUndefined()
+    expect(validateAskEnglishRequest({ ...request, answerMode: 'standard' }).answerMode).toBeUndefined()
+    for (const answerMode of [null, true, 'rag']) {
+      expect(() => validateAskEnglishRequest({ ...request, answerMode })).toThrow('Answer mode')
+    }
+  })
   it('validates optional retry linkage using the same bounded request ID contract', () => {
     const input = { requestId: 'new', question: 'rain', history: [], retryOfRequestId: ' old ' }
     expect(validateAskEnglishRequest(input).retryOfRequestId).toBe('old')

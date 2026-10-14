@@ -20,7 +20,7 @@ const save = vi.fn()
 const close = vi.fn()
 const exportCards = vi.fn()
 const autosave = async () => { await act(() => vi.advanceTimersByTimeAsync(600)) }
-const button = (text: string) => [...host.querySelectorAll('button')].find(item => item.textContent?.trim() === text)!
+const button = (text: string) => [...host.querySelectorAll('button')].find(item => (item.getAttribute('aria-label') ?? item.textContent?.trim()) === text)!
 const click = async (text: string) => { await act(() => button(text).click()) }
 const render = async (strict = false, start = true) => {
   const dialog = <AnkiDraftDialog note={note} directory="/notes" onClose={close} />
@@ -49,6 +49,82 @@ beforeEach(() => {
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
 })
 afterEach(async () => { await act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); vi.useRealTimers() })
+
+it('creates the first manual card without credentials, then saves and exports it', async () => {
+  load.mockResolvedValue({ ok: true, data: { drafts: null, stale: false, source: {
+    sourceNoteId: initialDrafts.sourceNoteId, sourceRevision: initialDrafts.sourceRevision, sourceTitle: note.title
+  } } })
+  vi.mocked(window.englishAsk!.getSettings).mockResolvedValueOnce({ ok: true, data: { modelProvider: 'deepseek', modelName: '', hasApiKey: false } } as never)
+  await render(false, false)
+  await click('新建卡片')
+  expect(document.activeElement?.getAttribute('aria-label')).toBe('新卡片正面')
+  await click('添加卡片')
+  expect(host.textContent).toContain('请填写卡片的正面和背面')
+  await autosave()
+  expect(save).not.toHaveBeenCalled()
+  await edit('新卡片正面', 'Manual question')
+  await edit('新卡片背面', 'Manual answer')
+  await edit('新卡片补充解释', 'Context')
+  await edit('新卡片标签', '手动 usage')
+  await click('添加卡片')
+  await autosave()
+  expect(save.mock.calls[0][0]).toMatchObject({ expectedDraftRevision: null, drafts: { cards: [
+    { front: 'Manual question', back: 'Manual answer', explanation: 'Context', tags: ['手动', 'usage'], selected: true }
+  ] } })
+  expect(generate).not.toHaveBeenCalled()
+  await click('导出所选卡片')
+  expect(exportCards).toHaveBeenCalledTimes(1)
+})
+
+it('appends manual cards without replacing saved cards and supports cancelling a new card', async () => {
+  load.mockResolvedValue({ ok: true, data: { drafts: initialDrafts, stale: false } })
+  await render(false, false)
+  await click('新建卡片')
+  await edit('新卡片正面', 'Unfinished')
+  await click('关闭')
+  expect(close).not.toHaveBeenCalled()
+  expect(host.textContent).toContain('新卡片尚未添加')
+  await click('继续编辑')
+  await click('取消新建')
+  await autosave()
+  expect(save).not.toHaveBeenCalled()
+  await click('新建卡片')
+  await edit('新卡片正面', 'New question')
+  await edit('新卡片背面', 'New answer')
+  await click('添加卡片')
+  await autosave()
+  const request = save.mock.calls[0][0]
+  expect(request.expectedDraftRevision).toBe('generated')
+  expect(request.drafts.cards).toHaveLength(3)
+  expect(request.drafts.cards.slice(0, 2)).toEqual(initialDrafts.cards)
+})
+
+it('disables manual creation for stale collections', async () => {
+  load.mockResolvedValueOnce({ ok: true, data: { drafts: initialDrafts, stale: true } })
+  await render(false, false)
+  expect(button('新建卡片').disabled).toBe(true)
+})
+
+it('enforces the total card limit for manual creation', async () => {
+  load.mockResolvedValue({ ok: true, data: { drafts: { ...initialDrafts,
+    cards: Array.from({ length: 20 }, (_, i) => ({ ...initialDrafts.cards[0], id: `card-${i}` })) }, stale: false } })
+  await render(false, false)
+  expect(button('新建卡片').disabled).toBe(true)
+})
+
+it('uses labeled icon buttons for secondary actions and retains clear primary actions', async () => {
+  await render()
+  for (const name of ['关闭', '刷新模型', '预览卡片 1']) {
+    expect(button(name).querySelector('svg')).not.toBeNull()
+    expect(button(name).getAttribute('title')).toBeTruthy()
+    expect(button(name).textContent).toBe('')
+  }
+  for (const name of ['新建卡片', '重新生成', '导出所选卡片']) expect(button(name).textContent).toBe(name)
+  await click('预览卡片 1')
+  expect(button('编辑卡片 1').querySelector('svg')).not.toBeNull()
+  await click('编辑卡片 1')
+  expect(host.querySelector('[aria-label="卡片 1 正面"]')).not.toBeNull()
+})
 
 it('generates once in StrictMode, autosaves, and exposes export as the primary action', async () => {
   await render(true)
@@ -161,6 +237,7 @@ it('disables exporting stale drafts until regeneration', async () => {
 it('does not regenerate over unreadable drafts and can retry loading', async () => {
   load.mockResolvedValueOnce({ ok: false, error: 'Corrupt draft file' })
   await render()
+  expect(button('新建卡片').disabled).toBe(true)
   expect(generate).not.toHaveBeenCalled()
   await click('重试读取')
   expect(generate).not.toHaveBeenCalled()

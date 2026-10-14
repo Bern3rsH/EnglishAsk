@@ -11,6 +11,7 @@ import {
   validateFormatAskNoteRequest
 } from './ask-note-service'
 import { generateProviderText } from './provider-adapters'
+import { getConfiguredModelProvider, getStoredProviderApiKey } from './settings'
 import { readNoteProvenance, withNoteProvenance, withoutNoteProvenance } from '../shared/note-provenance'
 
 vi.mock('./provider-adapters', () => ({
@@ -18,6 +19,7 @@ vi.mock('./provider-adapters', () => ({
 }))
 
 vi.mock('./settings', () => ({
+  getConfiguredOllamaBaseUrl: vi.fn().mockResolvedValue('http://127.0.0.1:11434'),
   getConfiguredDefaultAnswerLanguage: vi.fn().mockResolvedValue('en'),
   getConfiguredModelProvider: vi.fn().mockResolvedValue('openai'),
   getConfiguredProviderModel: vi.fn().mockResolvedValue('gpt-4.1'),
@@ -47,6 +49,15 @@ const existingNote: NoteDocument = {
   createdAt: '2026-08-19T09:00:00.000Z',
   updatedAt: '2026-08-19T09:00:00.000Z'
 }
+
+it('formats Notes with Ollama without a stored credential', async () => {
+  vi.mocked(getConfiguredModelProvider).mockResolvedValueOnce('ollama')
+  vi.mocked(getStoredProviderApiKey).mockClear()
+  vi.mocked(generateProviderText).mockResolvedValueOnce(JSON.stringify({ title: 'Local note', markdown: 'Complete learning content' }))
+  await formatAskNote({ operation: 'create', messages })
+  expect(generateProviderText).toHaveBeenLastCalledWith(expect.objectContaining({ modelProvider: 'ollama', apiKey: '' }))
+  expect(getStoredProviderApiKey).not.toHaveBeenCalled()
+})
 
 const multiTopicMessages: ChatMessage[] = [
   ...messages.map((message) =>

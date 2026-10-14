@@ -13,6 +13,11 @@
     "!**/.env.*"
   ],
   "asar": true,
+  "asarUnpack": [
+    "node_modules/node-llama-cpp/bins/**/*",
+    "node_modules/node-llama-cpp/llama/localBuilds/**/*",
+    "node_modules/@node-llama-cpp/**/*"
+  ],
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "mac": {
     "category": "public.app-category.education",

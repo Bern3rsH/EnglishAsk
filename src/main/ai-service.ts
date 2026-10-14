@@ -1,4 +1,7 @@
+import { generateMergedJevAnswer } from './merged-jev-answer'
 import { createHash } from 'node:crypto'
+import { answerFromNotes } from './rag-answer-service'
+import { decideNoteAnswerRoute } from './note-answer-routing'
 import { classificationTags } from '../shared/answer-tags'
 import { CardFormatError } from './card-format-error'
 import { CardReviewError } from './card-review-error'
@@ -25,6 +28,8 @@ import {
 export { extractInteractionOutputText }
 
 interface AskEnglishOptions {
+  /** Internal experiment switch; production uses the merged path. */
+  mergeJevAnswer?: boolean
   includeRouterDiagnostic?: boolean
   signal?: AbortSignal
 }
@@ -34,7 +39,8 @@ const getErrorMessage = (error: unknown): string => {
 }
 
 const classifyForRouting = async (
-  options: Parameters<typeof classifyEnglishRequest>[0]
+  options: Parameters<typeof classifyEnglishRequest>[0],
+  completeAcceptedLabels?: typeof classifyEnglishRequest
 ): Promise<RouterDiagnostic> => {
   let routing: RouterRoutingInfo | undefined
   try {
@@ -46,7 +52,7 @@ const classifyForRouting = async (
     }
     options.signal?.throwIfAborted()
     const classification = await classifyWithHybridRouter({ ...options, jevConfiguration,
-      onRouting: info => { routing = info } })
+      completeAcceptedLabels, onRouting: info => { routing = info } })
 
     console.info('EnglishAsk Router classification', {
       inputType: classification.inputType,
@@ -81,19 +87,33 @@ export const askEnglish = async (
 ): Promise<AskEnglishResponse> => {
   const request = validateAskEnglishRequest(input)
   options.signal?.throwIfAborted()
+  if (request.answerMode === 'notes') {
+    const noteAnswer = await answerFromNotes(request.question, { signal: options.signal })
+    return { answer: noteAnswer.answer, noteAnswer, model: noteAnswer.model ?? '', answerLanguage: 'zh' }
+  }
   const modelProvider = await getConfiguredModelProvider()
   const modelName = await getConfiguredProviderModel(modelProvider)
   const systemPrompt = await getConfiguredSystemPrompt()
   const answerLanguage = DEFAULT_ANSWER_LANGUAGE
-  const apiKey = resolveGeminiApiKey(
+  const apiKey = modelProvider === 'ollama' ? '' : resolveGeminiApiKey(
     await getStoredProviderApiKey(modelProvider),
     getEnvironmentProviderApiKey(modelProvider)
   )
 
   options.signal?.throwIfAborted()
 
-  if (!apiKey) {
+  if (apiKey === undefined || (modelProvider !== 'ollama' && !apiKey)) {
     throw new Error('Add an API key in settings before asking a question.')
+  }
+
+  if (request.answerMode === 'auto') {
+    const decision = await decideNoteAnswerRoute(request, { apiKey, modelProvider, modelName, signal: options.signal })
+    options.signal?.throwIfAborted()
+    console.info('EnglishAsk Notes routing', { route: decision.route, ...decision.routing })
+    if (decision.route === 'notes') {
+      const noteAnswer = await answerFromNotes(decision.query, { signal: options.signal })
+      return { answer: noteAnswer.answer, noteAnswer, model: noteAnswer.model ?? '', answerLanguage: 'zh' }
+    }
   }
 
   console.info('Sending EnglishAsk request', {
@@ -119,9 +139,16 @@ export const askEnglish = async (
   const resumedClassification = request.retryOfRequestId
     ? getResumableDraftClassification(request.retryOfRequestId, retryContextFingerprint)
     : undefined
+  let mergedAnswer: Awaited<ReturnType<typeof generateMergedJevAnswer>> | undefined
   const routerDiagnostic: RouterDiagnostic = resumedClassification
     ? { status: 'success', classification: resumedClassification }
-    : await classifyForRouting(providerRequest)
+    : await classifyForRouting(providerRequest, options.mergeJevAnswer === false ? undefined : async completionOptions => {
+      const result = await generateMergedJevAnswer({ ...completionOptions, answerLanguage, systemPrompt })
+      mergedAnswer = result
+      return result.classification
+    })
+  // A failed or cancelled merged request must never supply an answer to a fallback route.
+  if (routerDiagnostic.routing?.source !== 'jev-assisted') mergedAnswer = undefined
   if (resumedClassification) console.info('EnglishAsk resumed original Router classification for draft review')
   const shouldIncludeRouterDiagnostic =
     options.includeRouterDiagnostic ?? import.meta.env.DEV
@@ -147,6 +174,7 @@ export const askEnglish = async (
       try {
         // A rejected draft remains readable, but must never become an accepted card.
         const knowledgeCard = await generateKnowledgeCard({
+          ...(mergedAnswer?.initialOutput ? { initialOutput: mergedAnswer.initialOutput } : {}),
           requestId: request.requestId,
           retryContextFingerprint,
           ...(request.retryOfRequestId ? { retryOfRequestId: request.retryOfRequestId } : {}),
@@ -189,7 +217,7 @@ export const askEnglish = async (
     }
   }
 
-  const answer = await askProviderText({
+  const answer = mergedAnswer?.answer ?? await askProviderText({
     ...providerRequest,
     systemPrompt: buildSystemInstructionWithAnswerLanguage(systemPrompt, answerLanguage)
   })

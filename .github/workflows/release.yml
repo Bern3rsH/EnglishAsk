@@ -37,8 +37,13 @@ jobs:
         include:
           - os: macos-latest
             target: mac
+            arch: arm64
+          - os: macos-15-intel
+            target: mac
+            arch: x64
           - os: windows-latest
             target: win
+            arch: x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -51,10 +56,10 @@ jobs:
       - name: Verify existing packaging contracts
         run: npx vitest run src/main/packaging.test.ts
       - name: Build and verify packaged dependencies
-        run: npm run dist:${{ matrix.target }}
+        run: npm run dist:${{ matrix.target }} -- ${{ matrix.arch }}
       - uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.target }}
+          name: release-${{ matrix.target }}-${{ matrix.arch }}
           if-no-files-found: error
           path: |
             release/EnglishAsk-*.dmg

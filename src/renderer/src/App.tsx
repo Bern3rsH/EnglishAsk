@@ -1,4 +1,8 @@
+import { AppUpdateSettings } from './app-update-settings'
+import { LocalEmbeddingSettings } from './local-embedding-settings'
 import { JEV_CHANNELS, type JevChannel } from '../../shared/jev'
+import type { NoteAnswerSource } from '../../shared/rag'
+import { NoteAnswerSources } from './note-answer-sources'
 import { readNoteProvenance, replaceNoteBody, withoutNoteProvenance } from '../../shared/note-provenance'
 import { AnkiDraftDialog } from './anki-draft-dialog'
 import {
@@ -27,6 +31,7 @@ import {
   DEFAULT_MODEL_OPTIONS_BY_PROVIDER,
   DEFAULT_MODEL_PROVIDER,
   MODEL_PROVIDER_OPTIONS,
+  OLLAMA_BASE_URL,
   supportsDynamicModelListing,
   type AskNoteTopic,
   type ChatMessage,
@@ -522,6 +527,7 @@ export const App = (): ReactElement => {
     ...DEFAULT_GEMINI_MODEL_OPTIONS
   ])
   const [selectedModelName, setSelectedModelName] = useState('gemini-3.5-flash')
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState(OLLAMA_BASE_URL)
   const [systemPrompt, setSystemPrompt] = useState('')
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null)
   const [isSavingSettings, setIsSavingSettings] = useState(false)
@@ -621,7 +627,7 @@ export const App = (): ReactElement => {
   const selectedProviderSettings = settings?.providerSettings?.[selectedModelProvider] ??
     (settings?.modelProvider === selectedModelProvider ? settings : undefined)
   const hasTypedProviderApiKey = providerApiKey.trim().length > 0
-  const shouldShowModelNames = shouldShowProviderModelNames(
+  const shouldShowModelNames = selectedModelProvider === 'ollama' || shouldShowProviderModelNames(
     hasTypedProviderApiKey,
     selectedProviderSettings?.hasApiKey === true,
     selectedProviderSettings !== undefined
@@ -989,13 +995,19 @@ export const App = (): ReactElement => {
       const apiKey = providerApiKey.trim()
       const result = await englishAskBridge.listProviderModels({
         modelProvider: selectedModelProvider,
+        ...(selectedModelProvider === 'ollama' ? { ollamaBaseUrl } : {}),
         ...(apiKey ? { apiKey } : {})
       })
 
       if (result.ok) {
         setAvailableModelOptions([...new Set(result.data)])
+        if (selectedModelProvider === 'ollama' && !selectedModelName && result.data.length > 0) {
+          setSelectedModelName(result.data[0])
+        }
         setSettingsMessage(
-          result.data.includes(selectedModelName)
+          selectedModelProvider === 'ollama' && result.data.length === 0
+            ? 'Ollama 中没有可用的纯文本模型，请先在 Ollama 中安装模型。'
+            : result.data.includes(selectedModelName) || (selectedModelProvider === 'ollama' && !selectedModelName)
             ? null
             : `${selectedModelName} 已不可用，请选择其他模型。`
         )
@@ -1027,6 +1039,7 @@ export const App = (): ReactElement => {
       if (result.ok) {
         setSettings(result.data)
         setSelectedModelProvider(result.data.modelProvider)
+        setOllamaBaseUrl(result.data.ollamaBaseUrl ?? OLLAMA_BASE_URL)
         setSelectedModelName(result.data.modelName)
         setSystemPrompt(result.data.systemPrompt)
         setAvailableModelOptions((currentModels) =>
@@ -1791,7 +1804,7 @@ export const App = (): ReactElement => {
 
     const directory = settings?.noteStorageDirectory
     if (!directory) {
-      setError('笔记目录尚未加载，请稍后重试。')
+      setError('Note 目录尚未加载，请稍后重试。')
       return
     }
     noteUpdateInFlightRef.current = true
@@ -1844,7 +1857,7 @@ export const App = (): ReactElement => {
     setIsSavingNoteUpdate(true)
     setNoteUpdateError(null)
     try {
-      if (!(await flushPendingNoteSave())) throw new Error('无法保存当前笔记，请先处理保存错误。')
+      if (!(await flushPendingNoteSave())) throw new Error('无法保存当前 Note，请先处理保存错误。')
       const result = await englishAskBridge.saveNote({
         id: preview.original.id,
         markdown: preview.markdown,
@@ -1872,7 +1885,7 @@ export const App = (): ReactElement => {
     setIsLoadingNotes(true)
     setNoteImageError(null)
     try {
-      if (!(await flushPendingNoteSave())) throw new Error('无法保存当前笔记，暂不能撤销。')
+      if (!(await flushPendingNoteSave())) throw new Error('无法保存当前 Note，暂不能撤销。')
       const result = await englishAskBridge.saveNote({
         id: note.id,
         restorePrevious: true,
@@ -1914,6 +1927,28 @@ export const App = (): ReactElement => {
     } catch (error) {
       const message = error instanceof Error ? error.message : '无法加载 Note。'
       setNoteImageError(message)
+    } finally {
+      setIsLoadingNotes(false)
+    }
+  }
+
+  const openAnswerSource = async (source: NoteAnswerSource): Promise<void> => {
+    if (!englishAskBridge?.openNoteAnswerSource || isLoadingNotes) return
+    if (!(await flushPendingNoteSave())) {
+      setError('无法保存当前笔记，暂不能打开来源。')
+      return
+    }
+    setIsLoadingNotes(true)
+    try {
+      const result = await englishAskBridge.openNoteAnswerSource(source)
+      if (!result.ok) throw new Error(result.error)
+      updateActiveNote(result.data)
+      setNoteImageError(null)
+      setError(null)
+      setActiveView('chat')
+      setActiveWorkspace('notes')
+    } catch (error) {
+      setError(error instanceof Error ? error.message : '无法打开笔记来源。')
     } finally {
       setIsLoadingNotes(false)
     }
@@ -2430,6 +2465,8 @@ export const App = (): ReactElement => {
 
     const requestStartedAt = performance.now()
     const userMessage = retryMessage ?? createMessage('user', normalizedQuestion)
+    const requestMode = retryMessage ? retryMessage.answerMode ?? 'standard' : 'auto'
+    if (!retryMessage) userMessage.answerMode = requestMode
     const retryOfRequestId = rejectedAnswer?.retryRequestId
       ?? (retryMessage && !rejectedAnswer ? askRequestsRef.current.get(activeSession.id)?.requestId : undefined)
     const targetSessionId = activeSession.id
@@ -2457,6 +2494,7 @@ export const App = (): ReactElement => {
     try {
       const result = await englishAskBridge.askEnglish({
         requestId,
+        ...(requestMode === 'notes' || requestMode === 'auto' ? { answerMode: requestMode } : {}),
         ...(retryOfRequestId ? { retryOfRequestId } : {}),
         question: normalizedQuestion,
         history: targetHistory
@@ -2476,6 +2514,10 @@ export const App = (): ReactElement => {
           result.data.answerLanguage ?? answerLanguage
         )
         assistantMessage.responseDurationMs = responseDurationMs
+        if (result.data.noteAnswer) {
+          assistantMessage.noteAnswer = result.data.noteAnswer
+          assistantMessage.answerMode = 'notes'
+        }
         if (result.data.answerTags) assistantMessage.answerTags = result.data.answerTags
         if (result.data.formatWarning) {
           assistantMessage.formatWarning = result.data.formatWarning
@@ -2491,7 +2533,7 @@ export const App = (): ReactElement => {
             questionMessageId: userMessage.id,
             sessionId: targetSessionId
           }
-          setModelName(result.data.model)
+          if (result.data.model) setModelName(result.data.model)
         }
 
         setChatSessions((currentSessions) =>
@@ -2578,6 +2620,7 @@ export const App = (): ReactElement => {
         modelProvider: selectedModelProvider,
         apiKey: providerApiKey,
         modelName: selectedModelName,
+        ...(selectedModelProvider === 'ollama' ? { ollamaBaseUrl } : {}),
         defaultAnswerLanguage: DEFAULT_ANSWER_LANGUAGE,
         systemPrompt
       })
@@ -2585,6 +2628,7 @@ export const App = (): ReactElement => {
       if (result.ok) {
         setSettings(result.data)
         setModelName(null)
+        setOllamaBaseUrl(result.data.ollamaBaseUrl ?? OLLAMA_BASE_URL)
         setSelectedModelProvider(result.data.modelProvider)
         setSelectedModelName(result.data.modelName)
         setSystemPrompt(result.data.systemPrompt)
@@ -2773,17 +2817,18 @@ export const App = (): ReactElement => {
           <span>服务商</span>
           <AppSelect
             aria-label="模型服务商"
-            disabled={isSavingSettings || !englishAskBridge}
+            disabled={isSavingSettings || isLoadingModels || !englishAskBridge}
             onValueChange={(value) => {
               const nextProvider = value as ModelProvider
               const nextModel = settings?.providerSettings?.[nextProvider]?.modelName ??
                 (settings?.modelProvider === nextProvider ? settings.modelName : undefined) ??
-                DEFAULT_MODEL_OPTIONS_BY_PROVIDER[nextProvider][0]
+                DEFAULT_MODEL_OPTIONS_BY_PROVIDER[nextProvider][0] ?? ''
               setSelectedModelProvider(nextProvider)
+              setOllamaBaseUrl(settings?.ollamaBaseUrl ?? OLLAMA_BASE_URL)
               setSelectedModelName(nextModel)
               setAvailableModelOptions([...new Set([
                 nextModel, ...DEFAULT_MODEL_OPTIONS_BY_PROVIDER[nextProvider]
-              ])])
+              ].filter(Boolean))])
               setProviderApiKey('')
               setIsEditingGeminiApiKey(false)
             }}
@@ -2797,7 +2842,23 @@ export const App = (): ReactElement => {
           </AppSelect>
         </label>
 
-        <div className="fieldGroup">
+        {selectedModelProvider === 'ollama' ? (
+          <label className="fieldGroup">
+            <span>Ollama 服务地址（无需 API Key）</span>
+            <input
+              aria-label="Ollama 服务地址"
+              value={ollamaBaseUrl}
+              disabled={isSavingSettings || isLoadingModels || !englishAskBridge}
+              spellCheck={false}
+              onChange={event => {
+                setOllamaBaseUrl(event.target.value)
+                setSelectedModelName('')
+                setAvailableModelOptions([])
+                setSettingsMessage(null)
+              }}
+            />
+          </label>
+        ) : <div className="fieldGroup">
           <label htmlFor="providerApiKey">{selectedProviderLabel} API 密钥</label>
           <div className="apiKeyInputRow">
           <input
@@ -2833,7 +2894,7 @@ export const App = (): ReactElement => {
           {selectedProviderSettings?.apiKeySource === 'environment' ? (
             <span className="apiKeySourceLabel">正在使用环境变量密钥</span>
           ) : null}
-        </div>
+        </div>}
 
         <div className="fieldGroup">
           <span className="fieldHeader">
@@ -2858,7 +2919,7 @@ export const App = (): ReactElement => {
             onValueChange={setSelectedModelName}
             value={visibleSelectedModelName}
           >
-            {shouldShowModelNames && !isSelectedModelAvailable ? (
+            {shouldShowModelNames && selectedModelName && !isSelectedModelAvailable ? (
               <option disabled value={selectedModelName}>
                 {selectedModelName}（不可用）
               </option>
@@ -3002,6 +3063,36 @@ export const App = (): ReactElement => {
   const storageSettingsContent = (
     <section className="settingsPage" aria-label="Notes">
       <div className="settingsForm">
+        <label className="settingsCheckbox">
+          <input className="noteTimestampCheckbox" type="checkbox" aria-label="标题添加时间戳"
+            checked={settings?.noteTitleTimestampEnabled ?? false}
+            disabled={isSavingSettings || !englishAskBridge || !settings}
+            onChange={async event => {
+              if (!englishAskBridge || !settings) return
+              const enabled = event.target.checked
+              setIsSavingSettings(true)
+              setSettingsMessage(null)
+              try {
+                const result = await englishAskBridge.saveSettings({
+                  modelProvider: settings.modelProvider,
+                  modelName: settings.modelName,
+                  defaultAnswerLanguage: settings.defaultAnswerLanguage,
+                  systemPrompt: settings.systemPrompt,
+                  noteTitleTimestampEnabled: enabled
+                })
+                if (result.ok) {
+                  setSettings(result.data)
+                  setSettingsMessage(SETTINGS_SAVED_MESSAGE)
+                } else setSettingsMessage(result.error)
+              } catch {
+                setSettingsMessage('无法连接桌面服务。')
+              } finally {
+                setIsSavingSettings(false)
+              }
+            }} />
+          标题添加时间戳
+        </label>
+        <small className="settingsFieldHint">仅影响新建 Note，使用本机时间，例如：202504180202 Note 标题。更改后自动保存。</small>
         <label className="fieldGroup">
           <span>Notes 目录</span>
           <input
@@ -3042,6 +3133,7 @@ export const App = (): ReactElement => {
             使用默认目录
           </button>
         </div>
+        <LocalEmbeddingSettings bridge={englishAskBridge} />
       </div>
 
       {settingsMessage ? (
@@ -3557,6 +3649,9 @@ export const App = (): ReactElement => {
                         <details><summary>技术详情</summary><p>{message.formatWarning}</p></details>
                       </div>
                     </> : <MarkdownContent content={getMessageMarkdownContent(message)} />}
+                    {message.noteAnswer ? <NoteAnswerSources answer={message.noteAnswer}
+                      disabled={isLoadingNotes || !englishAskBridge?.openNoteAnswerSource}
+                      onOpen={source => void openAnswerSource(source)} /> : null}
                     {import.meta.env.DEV && message.routerDiagnostic ? (
                       <RouterDiagnosticContent
                         diagnostic={message.routerDiagnostic}
@@ -3802,6 +3897,14 @@ export const App = (): ReactElement => {
               >
                 Notes
               </button>
+              <button
+                className={visibleSettingsSection === 'about'
+                  ? 'settingsSidebarItem settingsSidebarItem-active' : 'settingsSidebarItem'}
+                onClick={() => setActiveSettingsSection('about')}
+                type="button"
+              >
+                关于与更新
+              </button>
             </nav>
           </aside>
 
@@ -3812,7 +3915,9 @@ export const App = (): ReactElement => {
                 ? jevSettingsContent
                 : visibleSettingsSection === 'storage'
                   ? storageSettingsContent
-                  : promptsSettingsContent}
+                  : visibleSettingsSection === 'about'
+                    ? <AppUpdateSettings bridge={englishAskBridge} />
+                    : promptsSettingsContent}
           </section>
         </main>
         {confirmationDialogElement}

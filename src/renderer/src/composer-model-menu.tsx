@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, ChevronRight } from 'lucide-react'
-import { DEFAULT_MODEL_OPTIONS_BY_PROVIDER, MODEL_PROVIDER_OPTIONS, supportsDynamicModelListing,
+import { DEFAULT_MODEL_OPTIONS_BY_PROVIDER, MODEL_PROVIDER_OPTIONS, supportsDynamicModelListing, isProviderConfigured,
   type ModelProvider, type ProviderModelsResult, type SettingsState } from '../../shared/ai'
 
 interface Props {
@@ -27,7 +27,7 @@ export function ComposerModelMenu({ settings, disabled, label, loadModels, onSel
   loader.current = loadModels
   const configured = (id: ModelProvider) => settings?.providerSettings?.[id]
     ?? (settings?.modelProvider === id ? settings : undefined)
-  const providers = MODEL_PROVIDER_OPTIONS.filter(option => configured(option.id)?.hasApiKey)
+  const providers = MODEL_PROVIDER_OPTIONS.filter(option => isProviderConfigured(option.id, configured(option.id)))
 
   useLayoutEffect(() => {
     if (!open) return
@@ -71,7 +71,7 @@ export function ComposerModelMenu({ settings, disabled, label, loadModels, onSel
   }, [open, provider, models])
 
   const activate = (id: ModelProvider) => {
-    if (saving || provider === id || !configured(id)?.hasApiKey) return
+    if (saving || provider === id || !isProviderConfigured(id, configured(id))) return
     setError('')
     setLoading(false)
     setProvider(id)

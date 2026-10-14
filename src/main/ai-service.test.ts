@@ -5,6 +5,10 @@ import * as hybridRouter from './hybrid-router'
 import type { KnowledgeCard } from '../shared/knowledge-card'
 import type { RouterClassification } from '../shared/router'
 import { askEnglish, extractInteractionOutputText } from './ai-service'
+import { answerFromNotes } from './rag-answer-service'
+vi.mock('./rag-answer-service', () => ({ answerFromNotes: vi.fn() }))
+import { decideNoteAnswerRoute } from './note-answer-routing'
+vi.mock('./note-answer-routing', () => ({ decideNoteAnswerRoute: vi.fn() }))
 import { generateKnowledgeCard, getResumableDraftClassification } from './knowledge-card-service'
 import { GrammarReviewError } from './grammar-review'
 import { CardModuleValidationError } from '../shared/card-modules'
@@ -29,6 +33,7 @@ const aiSdkMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('./settings', () => ({
+  getConfiguredOllamaBaseUrl: vi.fn().mockResolvedValue('http://127.0.0.1:11434'),
   getConfiguredDefaultAnswerLanguage: vi.fn(),
   getConfiguredModelProvider: vi.fn(),
   getConfiguredProviderModel: vi.fn(),
@@ -147,6 +152,89 @@ describe('extractInteractionOutputText', () => {
 })
 
 describe('askEnglish', () => {
+  it('automatically retrieves with the resolved question and does not enter English card routing', async () => {
+    mockGeminiSettings()
+    vi.mocked(decideNoteAnswerRoute).mockResolvedValue({ route: 'notes', query: '我的笔记里 draw attention to 的例句', routing: { source: 'answer-model' } })
+    const noteAnswer = { status: 'no_evidence' as const, answer: '没有找到匹配片段。', sources: [],
+      generationCalled: false, retrievedChunkCount: 0, providedSourceCount: 0, omittedChunkCount: 0 }
+    vi.mocked(answerFromNotes).mockResolvedValue(noteAnswer)
+    const result = await askEnglish({ requestId: 'auto-notes', answerMode: 'auto', question: '它的例句呢？', history: [] })
+    expect(answerFromNotes).toHaveBeenCalledWith('我的笔记里 draw attention to 的例句', { signal: undefined })
+    expect(result.noteAnswer).toEqual(noteAnswer)
+    expect(classifyEnglishRequest).not.toHaveBeenCalled()
+    expect(generateKnowledgeCard).not.toHaveBeenCalled()
+  })
+
+  it('continues ordinary generation when automatic routing chooses standard', async () => {
+    mockGeminiSettings()
+    vi.mocked(decideNoteAnswerRoute).mockResolvedValue({ route: 'standard', query: '', routing: { source: 'answer-model' } })
+    vi.mocked(classifyEnglishRequest).mockResolvedValue(conversationalClassification)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createFetchResponse({ output_text: 'General English answer.' })))
+    const result = await askEnglish({ requestId: 'auto-standard', answerMode: 'auto', question: 'hello there', history: [] })
+    expect(result.answer).toBe('General English answer.')
+    expect(result.noteAnswer).toBeUndefined()
+    expect(answerFromNotes).not.toHaveBeenCalled()
+    expect(classifyEnglishRequest).toHaveBeenCalledOnce()
+  })
+
+  it('does not substitute an ordinary answer after automatic routing or Notes generation fails', async () => {
+    mockGeminiSettings()
+    vi.mocked(decideNoteAnswerRoute).mockRejectedValueOnce(new Error('无法判断是否需要笔记'))
+    const request = { requestId: 'auto-error', answerMode: 'auto', question: '我的笔记有哪些？', history: [] }
+    await expect(askEnglish(request)).rejects.toThrow('无法判断')
+    expect(answerFromNotes).not.toHaveBeenCalled()
+    vi.mocked(decideNoteAnswerRoute).mockResolvedValueOnce({ route: 'notes', query: request.question, routing: { source: 'answer-model' } })
+    vi.mocked(answerFromNotes).mockRejectedValueOnce(new Error('笔记生成失败'))
+    await expect(askEnglish(request)).rejects.toThrow('笔记生成失败')
+    expect(classifyEnglishRequest).not.toHaveBeenCalled()
+    expect(generateKnowledgeCard).not.toHaveBeenCalled()
+  })
+
+  it('does not start retrieval or ordinary generation after automatic decision cancellation', async () => {
+    mockGeminiSettings()
+    const controller = new AbortController()
+    vi.mocked(decideNoteAnswerRoute).mockImplementationOnce(async () => {
+      controller.abort()
+      return { route: 'notes', query: '我的笔记有哪些？', routing: { source: 'answer-model' } }
+    })
+    await expect(askEnglish({ requestId: 'auto-stop', answerMode: 'auto', question: '我的笔记有哪些？', history: [] },
+      { signal: controller.signal })).rejects.toThrow()
+    expect(answerFromNotes).not.toHaveBeenCalled()
+    expect(classifyEnglishRequest).not.toHaveBeenCalled()
+  })
+
+  it('routes explicit Notes mode without calling Jev, the ordinary Router or card generation', async () => {
+    const noteAnswer = { status: 'no_evidence' as const, answer: '没有找到匹配片段。', sources: [],
+      generationCalled: false, retrievedChunkCount: 0, providedSourceCount: 0, omittedChunkCount: 0 }
+    vi.mocked(answerFromNotes).mockResolvedValue(noteAnswer)
+    const controller = new AbortController()
+    const result = await askEnglish({ requestId: 'notes-request', answerMode: 'notes', question: '我的笔记有哪些习惯表达？', history: [] },
+      { signal: controller.signal })
+    expect(answerFromNotes).toHaveBeenCalledWith('我的笔记有哪些习惯表达？', { signal: controller.signal })
+    expect(result).toEqual({ answer: noteAnswer.answer, noteAnswer, model: '', answerLanguage: 'zh' })
+    expect(classifyEnglishRequest).not.toHaveBeenCalled()
+    expect(generateKnowledgeCard).not.toHaveBeenCalled()
+    expect(getJevRoutingConfiguration).not.toHaveBeenCalled()
+    expect(decideNoteAnswerRoute).not.toHaveBeenCalled()
+  })
+
+  it('propagates Notes failures without falling back to ordinary generation', async () => {
+    vi.mocked(answerFromNotes).mockRejectedValue(new Error('笔记生成失败'))
+    await expect(askEnglish({ requestId: 'notes-failure', answerMode: 'notes', question: 'used to', history: [] })).rejects.toThrow('笔记生成失败')
+    expect(classifyEnglishRequest).not.toHaveBeenCalled()
+    expect(generateKnowledgeCard).not.toHaveBeenCalled()
+  })
+  it('allows an Ollama answer without any API credentials', async () => {
+    mockGeminiSettings()
+    vi.mocked(getConfiguredModelProvider).mockResolvedValue('ollama')
+    vi.mocked(getConfiguredProviderModel).mockResolvedValue('qwen3:8b')
+    vi.mocked(getStoredProviderApiKey).mockResolvedValue(undefined)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createFetchResponse({ done: true, message: { content: 'Local answer' } })))
+    const result = await askEnglish({ requestId: 'ollama-request', question: 'help me', history: [] })
+    expect(result.answer).toBe('Local answer')
+    expect(getStoredProviderApiKey).not.toHaveBeenCalled()
+  })
+
   beforeEach(() => {
     vi.mocked(getJevRoutingConfiguration).mockResolvedValue(undefined)
     vi.mocked(getResumableDraftClassification).mockReset()

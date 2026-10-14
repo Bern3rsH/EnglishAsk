@@ -352,12 +352,12 @@ const getAskNoteModelContext = async (): Promise<{
 }> => {
   const modelProvider = await getConfiguredModelProvider()
   const modelName = await getConfiguredProviderModel(modelProvider)
-  const apiKey = resolveGeminiApiKey(
+  const apiKey = modelProvider === 'ollama' ? '' : resolveGeminiApiKey(
     await getStoredProviderApiKey(modelProvider),
     getEnvironmentProviderApiKey(modelProvider)
   )
 
-  if (!apiKey) {
+  if (apiKey === undefined || (modelProvider !== 'ollama' && !apiKey)) {
     throw new Error('Add an API key in settings before using Ask Notes.')
   }
 

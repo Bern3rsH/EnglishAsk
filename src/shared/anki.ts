@@ -54,7 +54,11 @@ export interface ExportAnkiCardsRequest extends AnkiNoteRequest {
 export type ExportedAnkiCards = { cancelled: true } | { cancelled: false; filePath: string; count: number }
 
 export type AnkiResult<T> = { ok: true; data: T } | { ok: false; error: string }
-export interface LoadedAnkiDrafts { drafts: AnkiDraftSet | null; stale: boolean }
+export interface LoadedAnkiDrafts {
+  drafts: AnkiDraftSet | null
+  stale: boolean
+  source?: Pick<AnkiDraftSet, 'sourceNoteId' | 'sourceRevision' | 'sourceTitle'>
+}
 
 function record(value: unknown): asserts value is Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('卡片数据格式无效。')

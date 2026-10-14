@@ -55,15 +55,21 @@ export const MODEL_PROVIDER_OPTIONS = [
   {
     id: 'anthropic',
     label: 'Anthropic / Claude'
+  },
+  {
+    id: 'ollama',
+    label: 'Ollama（本地）'
   }
 ] as const
-export const DYNAMIC_MODEL_LIST_PROVIDERS = ['google-gemini', 'deepseek', 'openai', 'openrouter', 'anthropic'] as const
+export const OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
+export const DYNAMIC_MODEL_LIST_PROVIDERS = ['google-gemini', 'deepseek', 'openai', 'openrouter', 'anthropic', 'ollama'] as const
 export const DEFAULT_MODEL_OPTIONS_BY_PROVIDER = {
   'google-gemini': DEFAULT_GEMINI_MODEL_OPTIONS,
   openai: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini'],
   deepseek: ['deepseek-v4-flash', 'deepseek-v4-pro'],
   openrouter: ['openai/gpt-4.1', 'anthropic/claude-3.5-sonnet', 'deepseek/deepseek-chat'],
-  anthropic: ['claude-sonnet-5', 'claude-haiku-4-5-20251001', 'claude-opus-5-5']
+  anthropic: ['claude-sonnet-5', 'claude-haiku-4-5-20251001', 'claude-opus-5-5'],
+  ollama: [] as string[]
 } as const
 export const DEFAULT_ANSWER_LANGUAGE = 'zh'
 // Both values remain valid for historical messages; new answers use the default only.
@@ -121,6 +127,8 @@ export const supportsDynamicModelListing = (modelProvider: ModelProvider): boole
 }
 
 export interface ChatMessage {
+  answerMode?: 'standard' | 'notes' | 'auto'
+  noteAnswer?: import('./rag').NoteAnswer
   answerTags?: string[]
   id: string
   role: ChatRole
@@ -137,6 +145,7 @@ export interface ChatMessage {
 }
 
 export interface AskEnglishRequest {
+  answerMode?: 'standard' | 'notes' | 'auto'
   requestId: string
   retryOfRequestId?: string
   question: string
@@ -148,11 +157,13 @@ export interface CancelAskEnglishRequest {
 }
 
 export interface ListProviderModelsRequest {
+  ollamaBaseUrl?: string
   modelProvider: ModelProvider
   apiKey?: string
 }
 
 export interface AskEnglishResponse {
+  noteAnswer?: import('./rag').NoteAnswer
   answerTags?: string[]
   answer: string
   formatWarning?: string
@@ -170,7 +181,12 @@ export interface ProviderSettingsState {
   modelName: ProviderModel
 }
 
+export const isProviderConfigured = (provider: ModelProvider, state?: ProviderSettingsState): boolean =>
+  provider === 'ollama' ? Boolean(state?.modelName.trim()) : state?.hasApiKey === true
+
 export interface SettingsState {
+  noteTitleTimestampEnabled?: boolean
+  ollamaBaseUrl?: string
   jevChannel?: JevChannel
   jevChannelKeyLengths?: Partial<Record<JevChannel, number>>
   jevChannelKeys?: Partial<Record<JevChannel, boolean>>
@@ -191,6 +207,8 @@ export interface SettingsState {
 }
 
 export interface SaveSettingsRequest {
+  noteTitleTimestampEnabled?: boolean
+  ollamaBaseUrl?: string
   jevChannel?: JevChannel
   jevCloudflareAccountId?: string
   jevRoutingEnabled?: boolean

@@ -9,7 +9,7 @@ import test from 'node:test'
 import { extractReleaseNotes, loadReleaseNotes, projectRoot } from './extract-release-notes.mjs'
 import { packageRelease } from './package-release.mjs'
 import { publishRelease, releaseAssetNames } from './publish-release.mjs'
-import { verifyArchiveFiles } from './package-archive-checks.mjs'
+import { verifyArchiveFiles, verifyEmbeddingArchive } from './package-archive-checks.mjs'
 
 for (const separator of ['/', '\\']) {
   test(`archive checks accept ${JSON.stringify(separator)} paths and still reject missing dependencies and sensitive files`, () => {
@@ -50,21 +50,22 @@ test('real CLI writes notes to a file and rejects malformed arguments or tag mis
   } finally { rmSync(directory, { recursive: true, force: true }) }
 })
 
-for (const [target, platform, archiveCount] of [['mac', 'darwin', 2], ['win', 'win32', 1]]) {
-  test(`${target} builds both required targets before verifying every archive with telemetry disabled`, () => {
+for (const [target, platform, architecture] of [['mac', 'darwin', 'arm64'], ['mac', 'darwin', 'x64'], ['win', 'win32', 'x64']]) {
+  test(`${target}/${architecture} verifies the matching native archive with telemetry disabled`, () => {
     const calls = []
-    packageRelease(target, { platform, run: (...args) => calls.push(args) })
-    assert.equal(calls.length, 2 + archiveCount)
+    packageRelease(target, { platform, architecture, hostArchitecture: architecture, run: (...args) => calls.push(args) })
+    assert.equal(calls.length, 3)
     assert.equal(calls[0][1].at(-1), 'build')
-    assert(calls[1][1].includes('--x64'))
-    assert.equal(calls[1][1].includes('--arm64'), target === 'mac')
+    assert(calls[1][1].includes(`--${architecture}`))
+    assert(!calls[1][1].includes(architecture === 'x64' ? '--arm64' : '--x64'))
     assert.deepEqual(calls[1][1].slice(-2), ['--publish', 'never'])
     for (const call of calls) {
       assert.equal(call[2].env.VITE_TELEMETRY_DISABLED, '1')
       assert.equal(call[2].env.VITE_POSTHOG_KEY, '')
     }
     assert(calls.slice(2).every(call => call[1][0] === 'scripts/verify-package.mjs'))
-    assert(calls.slice(2).every(call => call[1][1].endsWith('app.asar')))
+    assert(calls[2][1][1].endsWith('app.asar'))
+    assert.deepEqual(calls[2][1].slice(2), [platform, architecture])
   })
 }
 
@@ -76,6 +77,23 @@ test('wrong host, unsupported target and build failures prevent subsequent packa
   assert.equal(calls, 0)
   assert.throws(() => packageRelease('mac', { platform: 'darwin', run }), /Build failed/)
   assert.equal(calls, 1)
+})
+
+test('cross-architecture native builds are rejected before running commands', () => {
+  assert.throws(() => packageRelease('mac', { platform: 'darwin', architecture: 'x64', hostArchitecture: 'arm64', run: () => assert.fail('must not build') }), /matching architecture/)
+})
+
+test('native archive checks reject wrong architecture, missing runtime and bundled model weights', () => {
+  const runtime = '/node_modules/node-llama-cpp/package.json'
+  const arm = '/node_modules/@node-llama-cpp/mac-arm64-metal/bins/mac-arm64-metal/llama-addon.node'
+  const intel = '/node_modules/@node-llama-cpp/mac-x64/bins/mac-x64/llama-addon.node'
+  const windows = '/node_modules/@node-llama-cpp/win-x64/bins/win-x64/llama-addon.node'
+  assert.doesNotThrow(() => verifyEmbeddingArchive([runtime, arm], 'darwin', 'arm64'))
+  assert.doesNotThrow(() => verifyEmbeddingArchive([runtime, intel], 'darwin', 'x64'))
+  assert.doesNotThrow(() => verifyEmbeddingArchive([runtime, windows].map(file => file.replaceAll('/', '\\')), 'win32', 'x64'))
+  assert.throws(() => verifyEmbeddingArchive([runtime, arm], 'darwin', 'x64'), /Missing native/)
+  assert.throws(() => verifyEmbeddingArchive([arm], 'darwin', 'arm64'), /Missing local/)
+  assert.throws(() => verifyEmbeddingArchive([runtime, arm, '/model.gguf'], 'darwin', 'arm64'), /Model weights/)
 })
 
 function fixture(callback) {
@@ -164,7 +182,11 @@ test('workflow gates native builds on notes validation and publication on both p
   assert.equal(workflow.permissions.contents, 'read')
   assert.equal(workflow.concurrency['cancel-in-progress'], false)
   assert.equal(workflow.jobs.build.needs, 'validate')
-  assert.deepEqual(workflow.jobs.build.strategy.matrix.include.map(entry => entry.target), ['mac', 'win'])
+  assert.deepEqual(workflow.jobs.build.strategy.matrix.include, [
+    { os: 'macos-latest', target: 'mac', arch: 'arm64' },
+    { os: 'macos-15-intel', target: 'mac', arch: 'x64' },
+    { os: 'windows-latest', target: 'win', arch: 'x64' }
+  ])
   assert.equal(workflow.jobs.publish.needs, 'build')
   assert.equal(workflow.jobs.publish.permissions.contents, 'write')
   assert(workflow.jobs.validate.steps.some(step => step.run?.includes('--tag "$RELEASE_TAG"')))

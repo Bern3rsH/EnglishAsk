@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rename as renameFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { readNoteProvenance, withoutNoteProvenance } from '../shared/note-provenance'
 import {
   createNote,
@@ -13,6 +13,24 @@ import {
 } from './note-storage'
 
 describe('note storage', () => {
+  it('prefixes new titles with local minute timestamps without changing bodies or rename behavior', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2025, 3, 18, 2, 2))
+    try {
+      const directory = await mkdtemp(join(tmpdir(), 'english-ask-timestamp-'))
+      const first = await createNote(directory, 'Original body', '词义.md', true)
+      expect(first.title).toBe('202504180202 词义')
+      expect(withoutNoteProvenance(first.markdown)).toBe('Original body')
+      expect((await createNote(directory, '', '词义', true)).title).toBe('202504180202 词义 1')
+      expect((await createNote(directory, '', undefined, true)).title).toBe('202504180202 未命名')
+      expect((await createNote(directory, '', '词义', false)).title).toBe('词义')
+      const longNote = await createNote(directory, '', '字'.repeat(80), true)
+      expect(Buffer.byteLength(longNote.id, 'utf8')).toBeLessThanOrEqual(255)
+      expect((await renameNote({ id: first.id, name: '手动标题' }, directory)).title).toBe('手动标题')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
   it('indexes tags from unopened files and refreshes them after external edits and saves', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'english-ask-tags-'))
     const path = join(directory, 'Example.md')

@@ -1,8 +1,15 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
+import { APP_UPDATE_CHANNELS } from '../shared/app-update'
+import { createAppUpdateChecker, openAppDownload } from './app-update'
+import { EMBEDDING_CHANNELS } from '../shared/embedding'
+import { getEmbeddingModelManager } from './embedding-model'
+import { localEmbeddingRetriever } from './local-embedding'
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import { localizeMenuLabels } from './menu-language'
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { askEnglish } from './ai-service'
+import { openNoteAnswerSource } from './rag-source-navigation'
+import { OPEN_NOTE_ANSWER_SOURCE_CHANNEL } from '../shared/rag'
 import { formatAskNote, planAskNotes } from './ask-note-service'
 import { generateAnkiDrafts, loadAnkiDrafts, saveAnkiDrafts } from './anki-drafts'
 import { exportAnkiCards } from './anki-export'
@@ -137,6 +144,11 @@ ipcMain.on(
     captureTelemetryEvent(eventName, properties)
   }
 )
+
+const checkAppUpdate = createAppUpdateChecker(() => app.getVersion())
+ipcMain.handle(APP_UPDATE_CHANNELS.info, () => ({ currentVersion: app.getVersion(), isPackaged: app.isPackaged }))
+ipcMain.handle(APP_UPDATE_CHANNELS.check, () => checkAppUpdate())
+ipcMain.handle(APP_UPDATE_CHANNELS.download, () => openAppDownload(url => shell.openExternal(url)))
 
 ipcMain.handle(ASK_ENGLISH_CHANNEL, async (_, request): Promise<AskEnglishResult> => {
   let activeRequest: { controller: AbortController; requestId: string } | null = null
@@ -429,7 +441,8 @@ ipcMain.handle(CREATE_NOTE_CHANNEL, async (_, request: unknown): Promise<NoteDoc
     const note = await createNote(
       undefined,
       createNoteRequest.markdown,
-      createNoteRequest.name
+      createNoteRequest.name,
+      (await getSettingsState()).noteTitleTimestampEnabled ?? false
     )
 
     captureTelemetryEvent('note_created', {
@@ -449,6 +462,16 @@ ipcMain.handle(CREATE_NOTE_CHANNEL, async (_, request: unknown): Promise<NoteDoc
       ok: false,
       error: message
     }
+  }
+})
+
+ipcMain.handle(OPEN_NOTE_ANSWER_SOURCE_CHANNEL, async (_, source: unknown): Promise<NoteDocumentResult> => {
+  try {
+    return { ok: true, data: await openNoteAnswerSource(source) }
+  } catch (error) {
+    const message = error instanceof Error && /^(笔记|Notes|原笔记|来源)/.test(error.message)
+      ? error.message : '无法打开笔记来源，请检查目录或重新提问。'
+    return { ok: false, error: message }
   }
 })
 
@@ -561,6 +584,27 @@ ipcMain.handle(
     }
   }
 )
+
+for (const [channel, action] of [
+  [EMBEDDING_CHANNELS.status, async () => (await getEmbeddingModelManager()).getStatus()],
+  [EMBEDDING_CHANNELS.download, async () => (await getEmbeddingModelManager()).startDownload()],
+  [EMBEDDING_CHANNELS.cancel, async () => (await getEmbeddingModelManager()).cancelDownload()],
+  [EMBEDDING_CHANNELS.enabled, async (enabled: unknown) => (await getEmbeddingModelManager()).setEnabled(enabled)]
+] as const) {
+  ipcMain.handle(channel, async (_event, enabled: unknown) => {
+    try { return { ok: true, data: await action(enabled) } }
+    catch { console.warn('Local embedding operation failed', channel); return { ok: false, error: '本地模型操作失败，请重试。' } }
+  })
+}
+let embeddingShutdownStarted = false
+app.on('before-quit', event => {
+  if (embeddingShutdownStarted) return
+  embeddingShutdownStarted = true
+  event.preventDefault()
+  void Promise.allSettled([
+    getEmbeddingModelManager().then(manager => manager.cancelDownload()), localEmbeddingRetriever.close()
+  ]).finally(() => app.quit())
+})
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.english-ask.app')

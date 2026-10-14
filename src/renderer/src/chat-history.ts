@@ -1,4 +1,5 @@
 import { isJevChannel } from '../../shared/jev'
+import { isNoteAnswer } from '../../shared/rag'
 import { normalizePersistedAskRequest, type PersistedAskRequest } from './ask-request-state'
 import { isAnswerTags } from '../../shared/answer-tags'
 import {
@@ -305,6 +306,12 @@ export const normalizeChatSessions = (value: unknown): ChatSession[] => {
 
   return value.filter(isChatSession).map(session => {
     const { retryState: stored, ...clean } = session
+    clean.messages = session.messages.map(message => {
+      const { answerMode, noteAnswer, ...body } = message
+      return { ...body,
+        ...(answerMode === 'standard' || answerMode === 'notes' || answerMode === 'auto' ? { answerMode } : {}),
+        ...(isNoteAnswer(noteAnswer) && noteAnswer.answer === message.content ? { noteAnswer } : {}) }
+    })
     const retryState = normalizePersistedAskRequest(stored, session.messages)
     return retryState ? { ...clean, retryState } : clean
   })

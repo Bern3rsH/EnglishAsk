@@ -44,7 +44,7 @@ export function NoteUpdatePreview({ title, before, after, saving, error, onCance
         <section aria-label="更新前">
           <h3>更新前</h3>
           <div tabIndex={0} className="noteUpdateContent">
-            {withoutNoteProvenance(before) ? <MarkdownContent content={withoutNoteProvenance(before)} /> : <p>空白笔记</p>}
+            {withoutNoteProvenance(before) ? <MarkdownContent content={withoutNoteProvenance(before)} /> : <p>空白 Note</p>}
           </div>
         </section>
         <section aria-label="更新后">

@@ -15,7 +15,7 @@ Mention common mistakes or important distinctions when relevant.
 Avoid unnecessary repetition, but do not omit useful learning information.
 Correct mistakes gently and preserve the user's intended meaning.`
 
-const assertRecord = (value: unknown): asserts value is Record<string, unknown> => {
+function assertRecord(value: unknown): asserts value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null) {
     throw new Error('Request must be an object.')
   }
@@ -100,9 +100,13 @@ const normalizeHistory = (history: unknown): ChatMessage[] => {
 
 export const validateAskEnglishRequest = (input: unknown): AskEnglishRequest => {
   assertRecord(input)
+  if (input.answerMode !== undefined && input.answerMode !== 'standard' && input.answerMode !== 'notes' && input.answerMode !== 'auto') {
+    throw new Error('Answer mode is invalid.')
+  }
 
   return {
     requestId: validateAskEnglishRequestId(input.requestId),
+    ...(input.answerMode === 'notes' || input.answerMode === 'auto' ? { answerMode: input.answerMode } : {}),
     ...(input.retryOfRequestId === undefined ? {} : {
       retryOfRequestId: validateAskEnglishRequestId(input.retryOfRequestId)
     }),

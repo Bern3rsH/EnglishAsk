@@ -660,9 +660,19 @@ button {
 .ankiDraftConfirmation span { flex-basis: 100%; color: #f0d9a7; }
 .ankiNoteButton, .ankiDraftDialog button { border: 1px solid #50525a; border-radius: 7px; padding: 8px 12px; background: #303238; color: #ececec; cursor: pointer; font: inherit; font-size: 0.85rem; }
 .ankiDraftDialog .ankiSaveButton { background: #dceafe; border-color: #dceafe; color: #14243a; }
+.ankiDraftDialog .ankiIconButton {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 6px; flex-shrink: 0;
+  border-color: transparent; background: transparent; color: #bfc2c8;
+}
+.ankiDraftDialog .ankiIconButton svg { width: 18px; height: 18px; }
+.ankiDraftDialog .ankiIconButton:hover:not(:disabled) { background: #303238; color: #ececec; }
+.ankiDraftDialog .ankiTextButton { border-color: transparent; background: transparent; color: #bfc2c8; }
 .ankiNoteButton:disabled, .ankiDraftDialog button:disabled { opacity: 0.45; cursor: default; }
 .ankiNoteButton:hover:not(:disabled), .ankiDraftDialog button:hover:not(:disabled) { filter: brightness(1.15); }
-.ankiNoteButton:focus-visible, .ankiDraftDialog :is(button, input, textarea):focus-visible { outline: 2px solid #93c5fd; outline-offset: 3px; }
+.ankiNoteButton:focus-visible, .ankiDraftDialog button:focus-visible { outline: 2px solid #93c5fd; outline-offset: 3px; }
+.ankiDraftDialog :is(input, textarea):focus,
+.ankiDraftDialog :is(input, textarea):focus-visible { outline: none; box-shadow: none; }
 @media (max-width: 640px) {
   .ankiCardFields, .ankiCardPreview { grid-template-columns: 1fr; }
   .ankiDraftDialog { width: calc(100vw - 20px); max-height: calc(100vh - 20px); }
@@ -1733,6 +1743,12 @@ ol {
   gap: 12px;
 }
 
+.noteAnswerSources { margin-top: 14px; padding-top: 10px; border-top: 1px solid #444; font-size: 13px; }
+.noteAnswerMode { display: block; margin-bottom: 6px; color: #aaa; }
+.noteAnswerSources summary { cursor: pointer; padding: 5px 0; }
+.noteAnswerSources blockquote { margin: 8px 0; padding-left: 12px; border-left: 2px solid #666; white-space: pre-wrap; }
+.noteAnswerSources button { padding: 5px 8px; border: 1px solid #555; border-radius: 6px; color: #ddd; background: transparent; cursor: pointer; }
+
 .composerModelName {
   overflow: hidden;
   min-width: 0;
@@ -1904,6 +1920,18 @@ ol {
   gap: 16px;
 }
 
+.localEmbeddingSettings {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding-top: 18px;
+  border-top: 1px solid #3f4044;
+}
+.localEmbeddingSettings h3 { margin: 0; font-size: 0.95rem; }
+.localEmbeddingSettings p { margin: 0; color: #b4b4b4; font-size: 0.85rem; line-height: 1.6; }
+.localEmbeddingSettings progress { width: 100%; accent-color: #50a684; }
+.localEmbeddingSettings [role="alert"] { color: #ef9a9a; }
+
 .settingsFields {
   display: grid;
   gap: 16px;
@@ -1940,6 +1968,16 @@ ol {
   width: 16px;
   height: 16px;
   min-height: 16px;
+  padding: 0;
+  flex-shrink: 0;
+  accent-color: #ececec;
+}
+
+.settingsCheckbox .noteTimestampCheckbox {
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  margin: 0;
   padding: 0;
   flex-shrink: 0;
   accent-color: #ececec;
@@ -2377,4 +2415,14 @@ ol {
 .ankiModelSelection { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 0 0 16px; border: 1px solid #383838; border-radius: 10px; padding: 12px; }
 .ankiModelSelection label { display: grid; gap: 6px; flex: 1; min-width: 140px; }
 .ankiModelSelection select { width: 100%; padding: 8px; color: inherit; background: #171717; border: 1px solid #383838; border-radius: 6px; }
+.ankiModelSelection select:focus,
+.ankiModelSelection select:focus-visible { outline: none; border-color: #383838; box-shadow: none; }
 .ankiModelSelection p { flex-basis: 100%; margin: 0; font-size: 12px; }
+
+.appUpdateSettings h2, .appUpdateSettings h3, .appUpdateSettings p { margin: 0; }
+.appUpdateSettings p { color: #b4b4b4; line-height: 1.6; }
+.appUpdateSettings [role="alert"] { color: #ef9a9a; }
+.appUpdateActions { display: flex; flex-wrap: wrap; gap: 12px; }
+.appUpdateActions button { padding: 10px 16px; border: 1px solid #555; border-radius: 8px; background: #303136; color: #eee; cursor: pointer; }
+.appUpdateActions button:disabled { opacity: 0.5; cursor: default; }
+.appReleaseNotes { margin: 0; padding: 18px; border: 1px solid #444; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.7; color: #ddd; }

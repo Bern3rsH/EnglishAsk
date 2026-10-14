@@ -1,4 +1,7 @@
+import type { AppUpdateBridge } from '../../shared/app-update'
+import type { EmbeddingBridge } from '../../shared/embedding'
 import type { GenerateAnkiDraftsRequest, ExportAnkiCardsRequest, ExportedAnkiCards, AnkiNoteRequest, SaveAnkiDraftsRequest, AnkiResult, AnkiDraftSet, LoadedAnkiDrafts } from '../../shared/anki'
+import type { NoteAnswerSource } from '../../shared/rag'
 import type {
   AskEnglishRequest,
   AskEnglishResult,
@@ -38,12 +41,13 @@ declare global {
   }
 
   interface Window {
-    englishAsk?: {
+    englishAsk?: Partial<EmbeddingBridge & AppUpdateBridge> & {
       exportAnkiCards: (request: ExportAnkiCardsRequest) => Promise<AnkiResult<ExportedAnkiCards>>
       generateAnkiDrafts: (request: GenerateAnkiDraftsRequest) => Promise<AnkiResult<AnkiDraftSet>>
       loadAnkiDrafts: (request: AnkiNoteRequest) => Promise<AnkiResult<LoadedAnkiDrafts>>
       saveAnkiDrafts: (request: SaveAnkiDraftsRequest) => Promise<AnkiResult<AnkiDraftSet>>
       platform: string
+      openNoteAnswerSource?: (source: NoteAnswerSource) => Promise<NoteDocumentResult>
       askEnglish: (request: AskEnglishRequest) => Promise<AskEnglishResult>
       cancelAskEnglish: (request: CancelAskEnglishRequest) => Promise<CancelAskEnglishResult>
       getSettings: () => Promise<SettingsResult>

@@ -9,6 +9,8 @@ import type { AskEnglishRequest, ModelProvider } from '../shared/ai'
 import { buildEnglishAskPrompt } from './ai-request'
 import { measureModelRequest, type ModelRequestPurpose } from './request-timing'
 import { fetchNativeProviderJSON, isRecord, nativeProviderHeaders } from './native-provider-api'
+import { generateOllamaText } from './ollama'
+import { getConfiguredOllamaBaseUrl } from './settings'
 
 const GEMINI_INTERACTIONS_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions'
 const CONTENT_TYPE_HEADER = 'Content-Type'
@@ -147,7 +149,7 @@ const generateGeminiText = async (options: GenerateProviderTextOptions): Promise
 const generateOpenAiCompatibleText = async (
   options: GenerateProviderTextOptions
 ): Promise<string> => {
-  if (options.modelProvider === 'google-gemini' || options.modelProvider === 'anthropic') {
+  if (options.modelProvider === 'google-gemini' || options.modelProvider === 'anthropic' || options.modelProvider === 'ollama') {
     throw new Error('Unsupported OpenAI-compatible provider.')
   }
   const providerConfig = OPENAI_COMPATIBLE_PROVIDERS[options.modelProvider]
@@ -218,7 +220,7 @@ const generateAnthropicText = async (options: GenerateProviderTextOptions): Prom
     throw new Error('Anthropic response format is invalid.')
   }
   if (response.stop_reason === 'max_tokens') {
-    throw new Error('Claude 回答超出输出上限，请缩小问题或笔记范围后重试。')
+    throw new Error('Claude 回答超出输出上限，请缩小问题或 Note 范围后重试。')
   }
   const answer = response.content
     .filter(block => isRecord(block) && block.type === 'text' && typeof block.text === 'string')
@@ -232,7 +234,8 @@ export const generateProviderText = async (
 ): Promise<string> => {
   return measureModelRequest({ purpose: options.purpose ?? 'answer',
     modelProvider: options.modelProvider, modelName: options.modelName, signal: options.signal },
-  () => options.modelProvider === 'google-gemini'
+  async () => options.modelProvider === 'ollama' ? generateOllamaText(options, await getConfiguredOllamaBaseUrl())
+    : options.modelProvider === 'google-gemini'
     ? generateGeminiText(options)
     : options.modelProvider === 'anthropic'
       ? generateAnthropicText(options) : generateOpenAiCompatibleText(options))

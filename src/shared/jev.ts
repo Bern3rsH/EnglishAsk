@@ -6,6 +6,8 @@ export const JEV_CHANNELS = {
 } as const
 
 export type JevChannel = keyof typeof JEV_CHANNELS
+// Initial routing gate shared by English classification and Notes routing.
+export const JEV_ROUTING_MIN_CONFIDENCE = 0.8
 export const isJevChannel = (value: unknown): value is JevChannel =>
   typeof value === 'string' && Object.hasOwn(JEV_CHANNELS, value)
 

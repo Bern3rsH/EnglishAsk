@@ -89,7 +89,8 @@ const readDrafts = async (directory: string, sourceNoteId: string): Promise<Anki
 export const loadAnkiDrafts = async (input: unknown, directory?: string): Promise<LoadedAnkiDrafts> => {
   const source = await getSource(validateRequest(input), directory)
   const drafts = await readDrafts(source.notesDirectory, source.sourceNoteId)
-  return { drafts, stale: !!drafts && drafts.sourceRevision !== source.sourceRevision }
+  return { drafts, stale: !!drafts && drafts.sourceRevision !== source.sourceRevision,
+    source: { sourceNoteId: source.sourceNoteId, sourceRevision: source.sourceRevision, sourceTitle: source.note.title } }
 }
 
 export const generateAnkiDrafts = async (input: unknown, directory?: string): Promise<AnkiDraftSet> => {
@@ -107,8 +108,8 @@ export const generateAnkiDrafts = async (input: unknown, directory?: string): Pr
   const pending = generationRequests.get(key)
   if (pending) return pending
   const operation = (async () => {
-    const apiKey = resolveGeminiApiKey(await getStoredProviderApiKey(provider), getEnvironmentProviderApiKey(provider))
-    if (!apiKey) throw new Error('请先在设置中填写 API Key。')
+    const apiKey = provider === 'ollama' ? '' : resolveGeminiApiKey(await getStoredProviderApiKey(provider), getEnvironmentProviderApiKey(provider))
+    if (apiKey === undefined || (provider !== 'ollama' && !apiKey)) throw new Error('请先在设置中填写 API Key。')
     let output: string
     try {
       output = await generateProviderText({ apiKey, modelProvider: provider,

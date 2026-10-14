@@ -37,6 +37,7 @@ export const MAX_KNOWLEDGE_CARD_CONTENT_CHARACTERS = 20_000
 export const MAX_KNOWLEDGE_CARD_CONTEXT_CHARACTERS = 4_000
 
 interface GenerateKnowledgeCardOptions {
+  initialOutput?: string
   requestId?: string
   retryOfRequestId?: string
   retryContextFingerprint?: string
@@ -57,7 +58,7 @@ export const getResumableDraftClassification = (
 const IPA_TOKEN_PATTERN = /(?<![\p{L}\p{N}])\/(?=[^/\r\n]*\p{L})[^/*`#:\r\n]+\/(?![\p{L}\p{N}])/gu
 const UK_IPA_LABEL_PATTERN = /(?:\bUK\b|\bBritish\b|英式|英音)/i
 const US_IPA_LABEL_PATTERN = /(?:\bUS\b|\bAmerican\b|美式|美音)/i
-const CARD_PROMPT_BY_TYPE: Record<KnowledgeCardType, string> = {
+export const CARD_PROMPT_BY_TYPE: Record<KnowledgeCardType, string> = {
   word: WORD_CARD_PROMPT,
   phrase: PHRASE_PATTERN_CARD_PROMPT,
   collocation: PHRASE_PATTERN_CARD_PROMPT,
@@ -367,21 +368,27 @@ export const buildKnowledgeCardInput = (
   )
 }
 
+// Shared by ordinary generation and the combined routing/answer request.
+export const validateKnowledgeCardDraft = (
+  output: string, input: unknown, answerLanguage: DefaultAnswerLanguage
+): KnowledgeCard => {
+  const request = validateGenerateKnowledgeCardRequest(input)
+  const card = parseKnowledgeCard(output, request.classification)
+  const requireModule = getSelectedCardModules(request.classification).includes('examples')
+  validateGeneratedExamples(card, requiresExampleTranslations(answerLanguage, request.sourceQuestion), requireModule)
+  validateExampleCount(card, resolveExampleCount(request), requireModule)
+  validateGeneratedCardModules(card, request.classification)
+  return card
+}
+
 export const generateKnowledgeCard = async (
   options: GenerateKnowledgeCardOptions
 ): Promise<KnowledgeCard> => {
   const request = validateGenerateKnowledgeCardRequest(options.request)
-  const exampleCount = resolveExampleCount(request)
   const cardPrompt = CARD_PROMPT_BY_TYPE[request.classification.inputType]
-  const requireTranslations = requiresExampleTranslations(options.answerLanguage, request.sourceQuestion)
-  const requireExampleModule = getSelectedCardModules(request.classification).includes('examples')
   const validateOutput = (output: string): KnowledgeCard => {
     options.signal?.throwIfAborted()
-    const card = parseKnowledgeCard(output, request.classification)
-    validateGeneratedExamples(card, requireTranslations, requireExampleModule)
-    validateExampleCount(card, exampleCount, requireExampleModule)
-    validateGeneratedCardModules(card, request.classification)
-    return card
+    return validateKnowledgeCardDraft(output, request, options.answerLanguage)
   }
 
   options.signal?.throwIfAborted()
@@ -393,7 +400,7 @@ export const generateKnowledgeCard = async (
   })).digest('hex')
   const cachedOutput = options.retryOfRequestId
     ? reviewDraftCache.take(options.retryOfRequestId, fingerprint) : undefined
-  const output = cachedOutput ?? await generateProviderText({
+  const output = cachedOutput ?? options.initialOutput ?? await generateProviderText({
     purpose: 'card-generation',
     apiKey: options.apiKey,
     modelName: options.modelName,

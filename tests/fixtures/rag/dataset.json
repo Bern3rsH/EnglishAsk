@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "notes": ["used-to.md", "be-used-to.md", "get-used-to.md", "present-perfect.md"],
+  "cases": [
+    {
+      "id": "dev-exact-form",
+      "split": "development",
+      "query": "used to 后面接什么形式的动词？",
+      "answerable": true,
+      "evidence": [
+        { "id": "used-to-form", "noteId": "used-to.md", "quote": "结构：used to + 动词原形。" }
+      ],
+      "answerPoints": ["used to 后接动词原形"],
+      "reason": "精确表达查询；be used to 和 get used to 是近似主题干扰项。"
+    },
+    {
+      "id": "dev-comparison",
+      "split": "development",
+      "query": "根据笔记，used to 和 be used to 的含义有什么区别？",
+      "answerable": true,
+      "evidence": [
+        { "id": "used-to-meaning", "noteId": "used-to.md", "quote": "used to 表示过去经常发生的动作或过去存在的状态，通常暗示现在已经不同。" },
+        { "id": "be-used-to-meaning", "noteId": "be-used-to.md", "quote": "be used to 表示已经习惯某件事或某种情况。" }
+      ],
+      "answerPoints": ["used to 涉及过去的动作或状态", "be used to 表示已经习惯"],
+      "reason": "两段证据都需要；找到其中一段不算覆盖完整比较。"
+    },
+    {
+      "id": "dev-no-evidence",
+      "split": "development",
+      "query": "根据我的笔记解释虚拟语气倒装。",
+      "answerable": false,
+      "evidence": [],
+      "answerPoints": ["说明笔记中缺少支持该问题的资料"],
+      "reason": "资料库缺少这个主题，不能以模型常识充当笔记证据。"
+    },
+    {
+      "id": "holdout-paraphrase",
+      "split": "heldout",
+      "query": "我已经适应早起了，这个意思在笔记中对应哪个表达？",
+      "answerable": true,
+      "evidence": [
+        { "id": "be-used-to-example", "noteId": "be-used-to.md", "quote": "I am used to getting up early. 我已经习惯早起。" }
+      ],
+      "answerPoints": ["对应 be used to", "提供笔记中的早起例句"],
+      "reason": "使用适应代替习惯，检查表达变化后的检索。"
+    },
+    {
+      "id": "holdout-cross-language",
+      "split": "heldout",
+      "query": "根据笔记，逐渐适应夜间工作可以用什么表达？",
+      "answerable": true,
+      "evidence": [
+        { "id": "get-used-to-meaning", "noteId": "get-used-to.md", "quote": "get used to describes the process of becoming familiar or comfortable with something." },
+        { "id": "get-used-to-example", "noteId": "get-used-to.md", "quote": "She is getting used to working at night." }
+      ],
+      "answerPoints": ["get used to 表达逐渐适应的过程", "提供笔记中的夜间工作例句"],
+      "reason": "中文问题、英文正文；期望覆盖同一篇笔记的两个证据段落。"
+    },
+    {
+      "id": "holdout-no-evidence",
+      "split": "heldout",
+      "query": "根据笔记总结英语冠词的所有例外。",
+      "answerable": false,
+      "evidence": [],
+      "answerPoints": ["说明笔记中缺少支持该问题的资料"],
+      "reason": "另一种无答案问题，用于观察无关内容是否被返回。"
+    }
+  ]
+}

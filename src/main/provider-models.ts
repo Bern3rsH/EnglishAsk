@@ -7,6 +7,9 @@ import { listGeminiModels } from './gemini-models'
 import { normalizeModelProvider } from './model-provider'
 import { listOpenAICompatibleModels } from './openai-compatible-models'
 import { listNativeProviderModels } from './native-provider-models'
+import { listOllamaModels } from './ollama'
+import { normalizeOllamaBaseUrl } from '../shared/ollama-url'
+import { getConfiguredOllamaBaseUrl } from './settings'
 
 const MAX_API_KEY_CHARACTERS = 4096
 
@@ -45,12 +48,17 @@ const validateListProviderModelsRequest = (input: unknown): ListProviderModelsRe
 
   return {
     modelProvider,
+    ...(modelProvider === 'ollama' && input.ollamaBaseUrl !== undefined
+      ? { ollamaBaseUrl: normalizeOllamaBaseUrl(input.ollamaBaseUrl) } : {}),
     apiKey: normalizeOptionalApiKey(input.apiKey)
   }
 }
 
 export const listProviderModels = async (input: unknown): Promise<string[]> => {
   const request = validateListProviderModelsRequest(input)
+  if (request.modelProvider === 'ollama') {
+    return listOllamaModels(request.ollamaBaseUrl ?? await getConfiguredOllamaBaseUrl())
+  }
 
   if (request.modelProvider === 'anthropic') {
     return listNativeProviderModels(request.modelProvider, request.apiKey)

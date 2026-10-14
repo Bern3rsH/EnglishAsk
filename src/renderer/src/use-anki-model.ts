@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { DEFAULT_MODEL_OPTIONS_BY_PROVIDER, MODEL_PROVIDER_OPTIONS, type ModelProvider, type SettingsState } from '../../shared/ai'
+import { DEFAULT_MODEL_OPTIONS_BY_PROVIDER, MODEL_PROVIDER_OPTIONS, isProviderConfigured, type ModelProvider, type SettingsState } from '../../shared/ai'
 
 export function useAnkiModel() {
   const [settings, setSettings] = useState<SettingsState | null>(null)
@@ -26,10 +26,10 @@ export function useAnkiModel() {
     return () => { cancelled = true }
   }, [attempt])
   const providers = MODEL_PROVIDER_OPTIONS.filter(({ id }) =>
-    settings?.providerSettings?.[id]?.hasApiKey ?? (settings?.modelProvider === id && settings.hasApiKey))
+    isProviderConfigured(id, settings?.providerSettings?.[id] ?? (settings?.modelProvider === id ? settings : undefined)))
   const provider = providers.find(({ id }) => id === selectedProvider)?.id ?? providers[0]?.id ?? selectedProvider
   const saved = settings?.providerSettings?.[provider]
-  const hasKey = saved?.hasApiKey ?? (settings?.modelProvider === provider && settings.hasApiKey)
+  const hasKey = isProviderConfigured(provider, saved ?? (settings?.modelProvider === provider ? settings : undefined))
   const savedModel = saved?.modelName ?? (settings?.modelProvider === provider ? settings.modelName : '')
   const model = hasKey ? choices[provider] ?? (savedModel || DEFAULT_MODEL_OPTIONS_BY_PROVIDER[provider][0]) : ''
   const options = hasKey ? [...new Set([model, savedModel, ...(lists[provider] ?? DEFAULT_MODEL_OPTIONS_BY_PROVIDER[provider])].filter(Boolean))] : []

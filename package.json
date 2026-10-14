@@ -1,6 +1,6 @@
 {
   "name": "english-ask",
-  "version": "0.1.2",
+  "version": "1.0.0",
   "description": "English learning desktop app with AI answers and Markdown study notes",
   "author": "Bern3rsH",
   "private": true,
@@ -31,6 +31,7 @@
     "ai": "latest",
     "lucide-react": "^1.37.0",
     "msedge-tts": "^2.0.4",
+    "node-llama-cpp": "3.22.1",
     "react": "latest",
     "react-dom": "latest",
     "zod": "^4.4.3"

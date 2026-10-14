@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { ModelProvider } from '../shared/ai'
 
-export type ModelRequestPurpose = 'routing' | 'card-generation' | 'grammar-review' | 'answer' | 'notes-planning' | 'notes-formatting' | 'anki-drafts'
+export type ModelRequestPurpose = 'routing-and-answer' | 'routing' | 'card-generation' | 'grammar-review' | 'answer' | 'notes-planning' | 'notes-formatting' | 'anki-drafts'
 
 export const measureModelRequest = async <T>(
   metadata: { purpose: ModelRequestPurpose; modelProvider: ModelProvider; modelName: string; signal?: AbortSignal },

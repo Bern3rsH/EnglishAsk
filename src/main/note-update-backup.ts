@@ -16,7 +16,7 @@ const getBackupPath = (directory: string, id: string): string =>
 const validateBackupDirectory = async (directory: string): Promise<void> => {
   const stats = await lstat(join(directory, BACKUP_DIRECTORY))
   if (!stats.isDirectory() || stats.isSymbolicLink()) {
-    throw new Error('笔记版本目录无效，无法保存更新前的版本。')
+    throw new Error('Note 版本目录无效，无法保存更新前的版本。')
   }
 }
 

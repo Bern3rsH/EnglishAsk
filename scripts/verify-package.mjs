@@ -1,14 +1,21 @@
+import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
-import { verifyArchiveFiles } from './package-archive-checks.mjs'
+import { verifyArchiveFiles, verifyEmbeddingArchive } from './package-archive-checks.mjs'
 
 const require = createRequire(import.meta.url)
 const { listPackage, extractAll } = require('@electron/asar')
 const archive = resolve(process.argv[2] ?? 'release/mac-arm64/EnglishAsk.app/Contents/Resources/app.asar')
-verifyArchiveFiles(listPackage(archive))
+const archiveFiles = listPackage(archive).map(file => file.replaceAll('\\', '/'))
+verifyArchiveFiles(archiveFiles)
+const targetPlatform = process.argv[3] ?? process.platform
+const targetArchitecture = process.argv[4] ?? process.arch
+verifyEmbeddingArchive(archiveFiles, targetPlatform, targetArchitecture)
+assert.equal(targetPlatform, process.platform, 'Verify native loading on the target OS')
+assert.equal(targetArchitecture, process.arch, 'Verify native loading on the target architecture')
 const isolatedDirectory = mkdtempSync(join(tmpdir(), 'englishask-package-dependencies-'))
 
 try {
@@ -19,6 +26,9 @@ try {
     await import('ai');
     await import('@ai-sdk/openai');
     await import('msedge-tts');
+    const { getLlama, LlamaLogLevel } = await import('node-llama-cpp');
+    const llama = await getLlama({ gpu: 'auto', build: 'never', skipDownload: true, progressLogs: false, logLevel: LlamaLogLevel.error });
+    await llama.dispose();
   `], {
     cwd: isolatedDirectory,
     env: {
